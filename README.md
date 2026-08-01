@@ -75,11 +75,63 @@ Run these from the repo root.
 ```
 src/
 ├─ app/            App Router routes, layout.tsx, globals.css (design tokens)
-├─ components/ui/  Base components: Button, Input, Select, Card, Modal
-├─ config/         locale.ts — locale, direction, Jalali/Persian formatters
+├─ components/ui/  The shared component kit — see below
+├─ config/         locale.ts, routes.ts
 ├─ fonts/          Self-hosted Vazir woff2 + next/font/local wiring
-└─ lib/            cn() class-merge helper
+├─ lib/            cn(), api client, session verify, jalali.ts, chart-theme.ts
+├─ providers/      QueryProvider, StoreHydration
+└─ stores/         Zustand: auth, ui, toast
 ```
+
+### Component kit
+
+| Component | |
+| --- | --- |
+| `Button` `Input` `Select` `Card` `Modal` | Base primitives |
+| `PageHeader` | Eyebrow, title, description, breadcrumbs, actions |
+| `Sidebar` | Collapsible rail, icon + label, active-state, persisted collapse |
+| `DataTable<T>` | Generic columns, client sort + pagination, `manual` mode for server data |
+| `DateRangeFilter` | today/week/month/year presets + Jalali custom range |
+| `ChartCard` | Recharts frame with title and the filter built in |
+| `Toaster` / `toast` | Zustand-backed notifications, callable outside React |
+
+`DataTable` is generic over the row type: `T` flows from `data` through
+`columns` into every `cell` and `sortValue` callback, so fields are checked and
+autocompleted at each use site.
+
+Live gallery of everything, with fixture data: **`/admin/design`**.
+
+### Dates
+
+Range presets are computed on the **Persian calendar**, not the Gregorian one
+(`src/lib/jalali.ts`). This matters — "this month" means the current Jalali
+month, which starts partway through a Gregorian one, and the week starts
+Saturday. A Gregorian date library would produce ranges that look plausible and
+are consistently wrong.
+
+### Charts
+
+Recharts has no RTL mode: left alone it runs the category axis left-to-right and
+puts the value axis on the left. Spread `rtlAxisProps.x` / `.y` from
+`src/lib/chart-theme.ts` onto your axes to correct that. Series colours and
+tooltip styling live there too, as literal values — Recharts takes colours as
+SVG attributes, not classes, so they mirror the `@theme` block rather than
+reading from it.
+
+### Client state
+
+`zustand` for UI state, `@tanstack/react-query` for server state — they don't
+overlap, so nothing is duplicated between them.
+
+- **`useAuthStore`** — current user and role. Not persisted: the httpOnly
+  session cookie is the source of truth and a cached copy can outlive it.
+- **`useUiStore`** — sidebar collapse (persisted) and a modal *stack*, so a
+  confirmation can open over a form without destroying it.
+- **`useToastStore`** / `toast` — callable from anywhere, including a query
+  `onError`, without being inside the component tree.
+
+Query defaults: `staleTime` 60s, `gcTime` 5min, no retry on 4xx (a 401 or 404 is
+a settled answer), no retry on mutations (a replayed POST can double-charge).
 
 ### Routing and the auth guard
 

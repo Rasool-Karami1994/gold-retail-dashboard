@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { vazir } from "@/fonts/vazir";
 import { DEFAULT_DIRECTION, DEFAULT_LOCALE, HTML_LANG } from "@/config/locale";
+import { QueryProvider } from "@/providers/query-provider";
+import { StoreHydration } from "@/providers/store-hydration";
+import { Toaster } from "@/components/ui/toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,7 +19,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang={HTML_LANG} dir={DEFAULT_DIRECTION} className={vazir.variable}>
-      <body>{children}</body>
+      <body>
+        <QueryProvider>
+          <StoreHydration />
+          {children}
+          {/* Rendered once at the root so a toast survives navigation. */}
+          <Toaster />
+        </QueryProvider>
+      </body>
     </html>
   );
 }

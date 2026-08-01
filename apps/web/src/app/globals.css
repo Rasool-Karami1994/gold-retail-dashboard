@@ -123,3 +123,80 @@
     outline-offset: 2px;
   }
 }
+
+/*
+  react-multi-date-picker ships light-themed styles that know nothing about our
+  tokens, so the calendar is restyled here rather than by importing one of its
+  themes. Scoped to .gd-calendar (set in DateRangeFilter) so nothing else on the
+  page is affected.
+
+  These selectors track the library's internal class names -- if the calendar
+  ever renders unstyled after a dependency bump, check whether .rmdp-* changed.
+*/
+.gd-calendar.rmdp-wrapper,
+.gd-calendar .rmdp-calendar {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  font-family: var(--font-sans);
+}
+
+.gd-calendar .rmdp-header-values,
+.gd-calendar .rmdp-week-day {
+  color: var(--color-fg-secondary);
+}
+
+.gd-calendar .rmdp-week-day {
+  font-size: var(--text-2xs);
+  font-weight: 500;
+}
+
+.gd-calendar .rmdp-day span {
+  color: var(--color-fg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+}
+
+.gd-calendar .rmdp-day:not(.rmdp-disabled):not(.rmdp-day-hidden) span:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-fg);
+}
+
+/* Days outside the visible month, and disabled days. */
+.gd-calendar .rmdp-day.rmdp-deactive span,
+.gd-calendar .rmdp-day.rmdp-disabled span {
+  color: var(--color-fg-disabled);
+}
+
+/* The two endpoints of the selected range. */
+.gd-calendar .rmdp-range {
+  background: var(--color-primary-500);
+  color: #fff;
+  box-shadow: none;
+}
+
+/* Days between the endpoints. */
+.gd-calendar .rmdp-range-hover,
+.gd-calendar .rmdp-range.start,
+.gd-calendar .rmdp-range.end {
+  background: var(--color-primary-500);
+}
+
+.gd-calendar .rmdp-day.rmdp-today span {
+  background: transparent;
+  color: var(--color-primary-400);
+  border: 1px solid var(--color-primary-500);
+}
+
+.gd-calendar .rmdp-arrow {
+  border-color: var(--color-fg-muted);
+}
+
+.gd-calendar .rmdp-arrow-container:hover {
+  background: var(--color-surface-raised);
+  box-shadow: none;
+}
+
+.gd-calendar .rmdp-arrow-container:hover .rmdp-arrow {
+  border-color: var(--color-fg);
+}

@@ -10,12 +10,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.101.4",
     "clsx": "^2.1.1",
     "jose": "^6.2.7",
     "next": "^15.1.6",
     "react": "^19.0.0",
+    "react-date-object": "^2.1.9",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.6.0"
+    "react-multi-date-picker": "^4.5.2",
+    "recharts": "^3.10.1",
+    "tailwind-merge": "^2.6.0",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
