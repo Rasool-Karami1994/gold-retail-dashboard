@@ -173,6 +173,61 @@ somewhere later. Import the typed `env` object rather than reading
 
 See [`apps/api/.env.example`](apps/api/.env.example) for the full list.
 
+### Auth
+
+Sessions are JWTs in **httpOnly cookies** — `gd_admin_token` and
+`gd_customer_token`, kept separate so a staff member testing the customer view
+doesn't destroy their own admin session. Tokens are never returned in a response
+body. Cookies are `SameSite=Lax`, and `Secure` in production only.
+
+Admins sign in with a password (bcrypt). Customers have no password at all —
+they authenticate by OTP.
+
+| Method | Path | |
+| --- | --- | --- |
+| `POST` | `/api/admin/auth/login` | `{ username, password }` → sets admin cookie |
+| `POST` | `/api/admin/auth/logout` | Clears the cookie. Always 200. |
+| `GET` | `/api/admin/auth/me` | Session check for the admin shell |
+| `POST` | `/api/customer/auth/request-otp` | `{ mobile, purpose }` → sends a 5-digit code |
+| `POST` | `/api/customer/auth/verify-otp` | `{ mobile, code, purpose }` |
+| `POST` | `/api/customer/auth/logout` | Clears the customer cookie |
+| `GET` | `/api/customer/auth/me` | Session check |
+
+**Purpose rules.** `login` is public and requires the customer to already exist
+(404 otherwise). `register` is **admin-only** — it is reached from the staff
+"add customer" screen, never the public site — and requires the customer *not*
+to exist yet (409 otherwise). Verifying a `register` code returns
+`{ verified: true }` and creates nothing; the Customer document is written by
+the customers controller.
+
+Codes live 2 minutes, allow 5 wrong guesses, and a resend retires the previous
+one. `POST request-otp` is rate limited to **3 per mobile per 10 minutes**
+(`OTP_RATE_LIMIT_*`), keyed on the normalized number so `+98…` and `09…` share
+a budget.
+
+Seed the first admin — set `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD`, run
+it, then remove them from `.env`:
+
+```bash
+pnpm --filter api seed:admin
+```
+
+It's idempotent: an existing username is left untouched unless you pass
+`--force`, which resets the password.
+
+### SMS
+
+`request-otp` sends through the `SmsProvider` interface in
+[`src/services/sms/`](apps/api/src/services/sms). The default `console` provider
+prints the message and **refuses to start when `NODE_ENV=production`** — a stub
+that silently succeeds without delivering would make every customer login fail
+in a way that looks like a client bug.
+
+To add a real gateway: implement `SmsProvider` in
+`src/services/sms/<name>.provider.ts`, add the name to the `SMS_PROVIDER` enum
+in `config/env.ts`, and add a case to the factory. Callers only ever see
+`getSmsProvider()`, so nothing else changes.
+
 ### Endpoints
 
 | Method | Path | |
