@@ -1,0 +1,19 @@
+# Local MongoDB for development. The apps themselves run on the host via
+# `pnpm dev` -- this file exists only so you don't have to install Mongo.
+services:
+  mongo:
+    image: mongo:7
+    container_name: g-dash-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo-data:

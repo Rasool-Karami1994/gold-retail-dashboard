@@ -1,0 +1,20 @@
+{
+  "name": "g-dash",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"pnpm:dev:web\" \"pnpm:dev:api\"",
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "pnpm --filter api dev",
+    "build": "pnpm --filter web build && pnpm --filter api build",
+    "start": "concurrently -n web,api -c cyan,magenta \"pnpm --filter web start\" \"pnpm --filter api start\"",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm --filter web lint",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

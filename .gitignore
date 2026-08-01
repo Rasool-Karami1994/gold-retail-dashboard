@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+
+# Claude Code: share the project settings and the /commit skill, keep personal
+# permission grants and scratch files local.
+.claude/settings.local.json
+.claude/*.tmp.*
