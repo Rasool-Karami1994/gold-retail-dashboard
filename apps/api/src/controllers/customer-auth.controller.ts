@@ -4,7 +4,7 @@ import { OTP_PURPOSES } from "../models/otp-request.model.js";
 import { requestOtp, verifyOtp } from "../services/otp.service.js";
 import { clearAuthCookie } from "../services/token.service.js";
 import { validated } from "../middleware/validate.js";
-import { currentAuth } from "../middleware/auth.js";
+import { hasRole } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error-handler.js";
 import { MOBILE_PATTERN, normalizeMobile } from "../lib/mobile.js";
 import { env } from "../config/env.js";
@@ -37,19 +37,18 @@ export const verifyOtpSchema = z.object({
  * This has to be checked in the controller rather than as route middleware:
  * the rule depends on `purpose`, which isn't known until the body is parsed.
  */
-function assertPurposeIsPermitted(purpose: string, res: Response) {
+function assertPurposeIsPermitted(purpose: string, req: Request) {
   if (purpose !== "register") return;
 
-  const auth = currentAuth(res);
-  if (auth?.role !== "admin") {
+  if (!hasRole(req, "admin")) {
     throw new HttpError(403, "Registration codes can only be requested by an admin");
   }
 }
 
 /** POST /api/customer/auth/request-otp */
-export async function requestOtpHandler(_req: Request, res: Response) {
+export async function requestOtpHandler(req: Request, res: Response) {
   const input = validated(res, requestOtpSchema);
-  assertPurposeIsPermitted(input.purpose, res);
+  assertPurposeIsPermitted(input.purpose, req);
 
   const result = await requestOtp(input);
 
@@ -58,9 +57,9 @@ export async function requestOtpHandler(_req: Request, res: Response) {
 }
 
 /** POST /api/customer/auth/verify-otp */
-export async function verifyOtpHandler(_req: Request, res: Response) {
+export async function verifyOtpHandler(req: Request, res: Response) {
   const input = validated(res, verifyOtpSchema);
-  assertPurposeIsPermitted(input.purpose, res);
+  assertPurposeIsPermitted(input.purpose, req);
 
   res.json(await verifyOtp(input, res));
 }

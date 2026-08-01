@@ -1,52 +1,89 @@
 import type { Request, RequestHandler } from "express";
 import { HttpError } from "./error-handler.js";
-import { COOKIE_NAMES, verifyToken, type Role, type TokenPayload } from "../services/token.service.js";
+import {
+  COOKIE_NAMES,
+  verifyToken,
+  type Role,
+  type TokenPayload,
+} from "../services/token.service.js";
 
 /**
- * Reads the session cookie for a role and verifies it.
+ * Authentication is split in two, so that "who is this?" and "are they allowed?"
+ * are separate concerns:
  *
- * The authenticated principal goes on `res.locals.auth` rather than being
- * bolted onto `req`, matching how `validate()` uses res.locals and avoiding a
- * global Express type augmentation.
+ *   authenticate      -- reads and verifies the JWT cookies, attaches req.user.
+ *                        Never rejects. A request with no cookie is simply
+ *                        anonymous, which is a valid state for public routes.
+ *   requireRole(role) -- rejects unless a valid session for `role` is present.
+ *
+ * They compose: `app.use(authenticate)` once, then `requireRole("admin")` on
+ * the groups that need it.
  */
 
-function readToken(req: Request, role: Role): TokenPayload | null {
-  const cookies = (req as Request & { cookies?: Record<string, string> }).cookies;
-  return verifyToken(cookies?.[COOKIE_NAMES[role]]);
-}
+/** Verifies every role cookie present on the request. */
+function readSessions(req: Request): Partial<Record<Role, TokenPayload>> {
+  const cookies = (req as Request & { cookies?: Record<string, string> }).cookies ?? {};
+  const sessions: Partial<Record<Role, TokenPayload>> = {};
 
-/** 401s unless a valid token for `role` is present. */
-export function requireAuth(role: Role): RequestHandler {
-  return (req, res, next) => {
-    const auth = readToken(req, role);
-    if (!auth) {
-      return next(new HttpError(401, "Authentication required"));
+  for (const role of Object.keys(COOKIE_NAMES) as Role[]) {
+    const payload = verifyToken(cookies[COOKIE_NAMES[role]]);
+    // Guard against a token whose payload role disagrees with the cookie it
+    // arrived in -- that would let a customer token sit in the admin cookie.
+    if (payload && payload.role === role) {
+      sessions[role] = payload;
     }
-    res.locals.auth = auth;
-    next();
-  };
-}
+  }
 
-export const requireAdmin = requireAuth("admin");
-export const requireCustomer = requireAuth("customer");
+  return sessions;
+}
 
 /**
- * Attaches the principal when present but never rejects.
+ * Reads the JWT cookies, verifies them, and attaches the result.
  *
- * Used by request-otp, where the rule depends on the body: `purpose: 'login'`
- * is public, `purpose: 'register'` is admin-only. The branch can only be
- * decided after validation, so authentication has to be non-fatal here and
- * enforced in the controller.
+ * An invalid, expired or forged token is treated exactly like no token at all:
+ * the request continues as anonymous and whatever guard sits downstream decides
+ * the outcome. Rejecting here would turn an expired cookie into a hard 401 on
+ * public routes, which is wrong -- the login page must stay reachable.
  */
-export function attachAuthIfPresent(role: Role): RequestHandler {
-  return (req, res, next) => {
-    const auth = readToken(req, role);
-    if (auth) res.locals.auth = auth;
+export const authenticate: RequestHandler = (req, _res, next) => {
+  const sessions = readSessions(req);
+  req.sessions = sessions;
+  // Default principal when a route doesn't name a role. Admin wins because
+  // staff routes are the stricter context.
+  req.user = sessions.admin ?? sessions.customer;
+  next();
+};
+
+/**
+ * Rejects unless the request carries a valid session for `role`, then repoints
+ * `req.user` at that principal so the handler sees the role it asked for.
+ *
+ * Requires `authenticate` to have run first.
+ */
+export function requireRole(role: Role): RequestHandler {
+  return (req, _res, next) => {
+    const session = req.sessions?.[role];
+
+    if (!session) {
+      // 401 when nothing is signed in, 403 when someone is but as the wrong
+      // role -- re-authenticating fixes the first, never the second.
+      const anySession = req.user !== undefined;
+      return next(
+        anySession
+          ? new HttpError(403, `This endpoint requires the ${role} role`)
+          : new HttpError(401, "Authentication required"),
+      );
+    }
+
+    req.user = session;
     next();
   };
 }
 
-/** Typed reader for whatever the middleware above attached. */
-export function currentAuth(res: { locals: Record<string, unknown> }): TokenPayload | null {
-  return (res.locals.auth as TokenPayload | undefined) ?? null;
+export const requireAdmin = requireRole("admin");
+export const requireCustomer = requireRole("customer");
+
+/** True when a valid session for `role` is on the request. */
+export function hasRole(req: Request, role: Role): boolean {
+  return req.sessions?.[role] !== undefined;
 }

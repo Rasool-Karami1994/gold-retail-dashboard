@@ -3,25 +3,24 @@ import * as controller from "../controllers/customer-auth.controller.js";
 import { asyncHandler } from "../middleware/async-handler.js";
 import { validate } from "../middleware/validate.js";
 import { otpRequestLimiter } from "../middleware/rate-limit.js";
-import { attachAuthIfPresent, requireCustomer } from "../middleware/auth.js";
-
-/** Mounted at /api/customer/auth */
-export const customerAuthRouter: Router = Router();
+import { requireRole } from "../middleware/auth.js";
 
 /**
- * Middleware order matters here.
+ * Mounted at /api/customer/auth.
  *
- * `attachAuthIfPresent("admin")` runs first but does not reject -- whether an
- * admin session is *required* depends on `purpose`, which the controller checks
- * once the body is parsed ('register' is admin-only, 'login' is public).
+ * The OTP endpoints cannot use `requireRole` at the route level: whether a
+ * session is needed depends on `purpose`, which is only known once the body is
+ * parsed ('register' is admin-only, 'login' is public). `authenticate` runs
+ * app-wide and has already populated req.sessions, so the controller checks
+ * `hasRole(req, "admin")` after validation.
  *
  * The rate limiter sits before validation so malformed floods are throttled
- * too, and it reads `req.body.mobile` directly -- express.json() has already
- * populated it by this point.
+ * too; it reads req.body.mobile, which express.json() has already populated.
  */
+export const customerAuthRouter: Router = Router();
+
 customerAuthRouter.post(
   "/request-otp",
-  attachAuthIfPresent("admin"),
   otpRequestLimiter,
   validate(controller.requestOtpSchema),
   asyncHandler(controller.requestOtpHandler),
@@ -29,13 +28,12 @@ customerAuthRouter.post(
 
 customerAuthRouter.post(
   "/verify-otp",
-  attachAuthIfPresent("admin"),
   validate(controller.verifyOtpSchema),
   asyncHandler(controller.verifyOtpHandler),
 );
 
 customerAuthRouter.post("/logout", asyncHandler(controller.logoutHandler));
 
-customerAuthRouter.get("/me", requireCustomer, (_req, res) => {
-  res.json({ customer: res.locals.auth });
+customerAuthRouter.get("/me", requireRole("customer"), (req, res) => {
+  res.json({ customer: req.user });
 });

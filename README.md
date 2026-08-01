@@ -81,6 +81,36 @@ src/
 └─ lib/            cn() class-merge helper
 ```
 
+### Routing and the auth guard
+
+[`src/middleware.ts`](apps/web/src/middleware.ts) gates both audiences. Paths
+live in [`src/config/routes.ts`](apps/web/src/config/routes.ts).
+
+| Path | Signed out | Customer | Admin |
+| --- | --- | --- | --- |
+| `/` | → `/login` | → `/dashboard` | → `/admin/overview` |
+| `/admin` | → `/admin/login` | → `/admin/login` | → `/admin/overview` |
+| `/admin/*` | → `/admin/login` | → `/admin/login` | allowed |
+| `/login`, `/admin/login` | allowed | → `/dashboard` | → `/admin/overview` |
+| everything else | → `/login` | allowed | → `/login` |
+
+Blocked requests carry the intended path through as `?next=`, so the login page
+can send the user back afterwards. A signed-in user who lands on a login page is
+bounced to their own home.
+
+The middleware verifies the API's cookie locally with `jose` rather than calling
+`/me` on every navigation — Next middleware runs on the Edge runtime, which has
+Web Crypto but not Node's `crypto`. That means **this app needs the same
+`JWT_SECRET` as `apps/api`**; see `.env.example`.
+
+> This is a redirect layer, not an authorisation boundary. It decides which page
+> to show, not what data you can read — the API re-checks the same cookie on
+> every call. Bypassing the middleware exposes empty placeholder pages, not data.
+
+Cookies are not port-scoped, so in local dev the cookie the API sets on
+`localhost:4000` is sent to `localhost:3000` unchanged. In production the two
+apps must share a site, or sit behind one proxy.
+
 ### RTL and locale
 
 `<html lang="fa" dir="rtl">` is set in
@@ -174,6 +204,21 @@ somewhere later. Import the typed `env` object rather than reading
 See [`apps/api/.env.example`](apps/api/.env.example) for the full list.
 
 ### Auth
+
+Two middlewares do the work, split so that "who is this?" and "are they
+allowed?" stay separate concerns:
+
+- **`authenticate`** runs app-wide. It reads and verifies every session cookie
+  present and attaches `req.user` plus `req.sessions`. It **never rejects** — an
+  absent or expired cookie just means anonymous, so login routes stay reachable.
+- **`requireRole('admin' | 'customer')`** guards a route or a whole mount point,
+  and repoints `req.user` at the role the route asked for. It answers `401` when
+  nobody is signed in and `403` when someone is but as the wrong role —
+  re-authenticating fixes the first and never the second.
+
+`/api/v1/health` and the login/OTP entry points are public; everything else
+under `/api/v1` is gated on `admin` at the mount point, so a new resource
+inherits the guard instead of having to remember it.
 
 Sessions are JWTs in **httpOnly cookies** — `gd_admin_token` and
 `gd_customer_token`, kept separate so a staff member testing the customer view
