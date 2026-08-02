@@ -132,7 +132,11 @@ export async function create(req: Request, res: Response) {
  * added so the printed invoice matches the current balance.
  */
 export async function regenerateInvoice(req: Request, res: Response) {
-  const result = await generateInvoicePdf(req.params.id as string);
+  // Opt-in, so re-rendering after a payment does not text the customer again.
+  // Pass ?notify=true to resend the link, e.g. when the first send failed.
+  const notify = req.query.notify === "true";
+
+  const result = await generateInvoicePdf(req.params.id as string, { notify });
   res.status(201).json(result);
 }
 

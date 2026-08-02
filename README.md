@@ -421,6 +421,41 @@ amounts. The route matches an exact allowlist pattern before touching the
 filesystem, and responses are `no-store` + `noindex` so a leaked link doesn't
 end up in a proxy cache or a search index.
 
+### SMS
+
+[`src/services/sms.ts`](apps/api/src/services/sms.ts) exposes a provider
+interface plus two implementations: a console stub for development (which
+refuses to start in production) and Kavenegar. Pick one with `SMS_PROVIDER`.
+
+Kavenegar is called over `fetch` rather than the official `kavenegar` npm
+package — that SDK is on 1.1.4, last published June 2022, callback-based and
+untyped, which is a stale dependency to take on for what amounts to two URL
+builds.
+
+**One-time codes and ordinary messages take different endpoints.** Iranian
+gateways will not carry an OTP on a normal sending line, so a message with a
+`template` goes through `verify/lookup` (positional `token`, `token2`, … — no
+spaces allowed in a token) and everything else through `sms/send` with
+`KAVENEGAR_SENDER`. Register a template named `otp` whose first token is the
+code.
+
+The two call sites treat failure differently, on purpose:
+
+- **OTP** fails loudly with a 502. The whole point of the request is to put a
+  code in the customer's hand; answering 201 would leave them waiting at a code
+  box for a message that is never coming.
+- **The invoice link** is sent with `trySend`, which never throws. The PDF
+  exists and its URL is already saved, so a gateway outage must not undo real
+  work — it logs and moves on, and the link stays retrievable from the
+  transaction.
+
+Only the create path texts the customer. Re-rendering an invoice does not, so
+adding a payment doesn't spam them; pass `?notify=true` to
+`POST /api/admin/transactions/:id/invoice` to deliberately resend.
+
+The API key travels in Kavenegar's URL path, so that URL is never logged and
+never included in an error.
+
 PDFs are rendered with **`puppeteer-core`, not `puppeteer`** — the full package
 downloads its own Chromium from `storage.googleapis.com`, which returns 403
 from Iran and makes `pnpm install` fail outright. puppeteer-core is the same

@@ -4,7 +4,7 @@ import { HttpError } from "../middleware/error-handler.js";
 import { CustomerModel } from "../models/customer.model.js";
 import { OtpRequestModel, type OtpPurpose } from "../models/otp-request.model.js";
 import { normalizeMobile } from "../lib/mobile.js";
-import { getSmsProvider } from "./sms/index.js";
+import { getSmsProvider, SmsError } from "./sms.js";
 import { setAuthCookie } from "./token.service.js";
 import type { Response } from "express";
 
@@ -81,12 +81,34 @@ export async function requestOtp({
   });
 
   const minutes = Math.round(env.OTP_TTL_SECONDS / 60);
-  await getSmsProvider().send({
-    to: normalized,
-    text: `کد ورود شما: ${code}\nاعتبار: ${minutes} دقیقه`,
-    template: "otp",
-    variables: { code, minutes: String(minutes) },
-  });
+
+  /**
+   * Unlike the invoice link, this one is NOT swallowed on failure.
+   *
+   * The entire purpose of the request is to put a code in the customer's hand.
+   * Answering 201 when the gateway refused would leave them staring at a code
+   * entry box waiting for a message that is never coming; a 502 at least tells
+   * the UI to say "try again".
+   */
+  try {
+    await getSmsProvider().send({
+      to: normalized,
+      text: `کد ورود شما: ${code}\nاعتبار: ${minutes} دقیقه`,
+      // Iranian gateways will not carry a one-time code on a normal sending
+      // line -- it has to be an approved template. Register one named "otp"
+      // whose first token is the code.
+      template: "otp",
+      variables: { code, minutes: String(minutes) },
+    });
+  } catch (error) {
+    console.error(`[otp] could not send a ${purpose} code to ${normalized}:`, error);
+    throw new HttpError(
+      502,
+      error instanceof SmsError
+        ? "Could not send the verification code. Please try again."
+        : "Could not send the verification code.",
+    );
+  }
 
   return {
     mobile: normalized,

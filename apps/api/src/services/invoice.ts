@@ -8,6 +8,8 @@ import { env } from "../config/env.js";
 import { HttpError } from "../middleware/error-handler.js";
 import { TransactionModel } from "../models/transaction.model.js";
 import { renderInvoiceHtml } from "./invoice-template.js";
+import { trySend } from "./sms.js";
+import { formatToman } from "../lib/jalali.js";
 
 /**
  * Renders transaction invoices to PDF with headless Chrome.
@@ -203,8 +205,20 @@ export interface GeneratedInvoice {
  * and repoints `invoicePdfUrl` at it. Older files are left in place, since a
  * link already sent by SMS should keep working.
  */
+export interface GenerateInvoiceOptions {
+  /**
+   * Text the customer the link once it is rendered.
+   *
+   * Off by default so that re-rendering -- after payments are added, or to
+   * retry a failed render -- does not text the customer again each time. The
+   * create path opts in; the explicit endpoint does so only when asked.
+   */
+  notify?: boolean;
+}
+
 export async function generateInvoicePdf(
   transactionId: string,
+  { notify = false }: GenerateInvoiceOptions = {},
 ): Promise<GeneratedInvoice> {
   const transaction = await TransactionModel.findById(transactionId).populate<{
     customer: { firstName: string; lastName: string; mobile: string };
@@ -257,6 +271,21 @@ export async function generateInvoicePdf(
     { $set: { invoicePdfUrl: url } },
   );
 
+  if (notify) {
+    // trySend never throws. The PDF exists and the URL is already persisted --
+    // a gateway outage must not undo that, and the link stays retrievable from
+    // the transaction either way.
+    await trySend(
+      transaction.customer.mobile,
+      [
+        `فاکتور ${transaction.invoiceNumber}`,
+        `مبلغ: ${formatToman(transaction.totalAmount)} تومان`,
+        `مشاهده: ${url}`,
+      ].join("\n"),
+      `invoice ${transaction.invoiceNumber}`,
+    );
+  }
+
   return { filename, url, path };
 }
 
@@ -297,7 +326,9 @@ async function renderPdf(html: string): Promise<Uint8Array> {
  * through POST /api/admin/transactions/:id/invoice.
  */
 export function generateInvoicePdfInBackground(transactionId: string): void {
-  void generateInvoicePdf(transactionId).catch((error) => {
+  // notify: this is the one path where the customer has not seen the invoice
+  // yet, so it is the one that texts them the link.
+  void generateInvoicePdf(transactionId, { notify: true }).catch((error) => {
     console.error(
       `[invoice] failed to generate PDF for transaction ${transactionId}:`,
       error,
