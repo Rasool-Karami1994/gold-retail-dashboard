@@ -7,8 +7,10 @@ import { env } from "./config/env.js";
 import { apiRouter } from "./routes/index.js";
 import { adminAuthRouter } from "./routes/admin-auth.routes.js";
 import { adminCustomerRouter } from "./routes/admin-customer.routes.js";
+import { adminTransactionRouter } from "./routes/admin-transaction.routes.js";
 import { customerAuthRouter } from "./routes/customer-auth.routes.js";
 import { customerMeRouter } from "./routes/customer-me.routes.js";
+import { customerTransactionRouter } from "./routes/customer-transaction.routes.js";
 import { authenticate } from "./middleware/auth.js";
 import { errorHandler, notFound } from "./middleware/error-handler.js";
 
@@ -42,8 +44,10 @@ export function createApp(): Express {
   // versioned under /api/v1.
   app.use("/api/admin/auth", adminAuthRouter);
   app.use("/api/admin/customers", adminCustomerRouter);
+  app.use("/api/admin/transactions", adminTransactionRouter);
   app.use("/api/customer/auth", customerAuthRouter);
   app.use("/api/customer/me", customerMeRouter);
+  app.use("/api/customer/transactions", customerTransactionRouter);
   app.use("/api/v1", apiRouter);
 
   // Order matters: 404 first, then the error handler that renders it.

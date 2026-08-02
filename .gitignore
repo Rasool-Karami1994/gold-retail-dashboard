@@ -14,3 +14,6 @@ next-env.d.ts
 # permission grants and scratch files local.
 .claude/settings.local.json
 .claude/*.tmp.*
+# Transient: the commit message for the turn in progress, consumed by
+# .claude/scripts/auto-commit.sh.
+.claude/commit-msg

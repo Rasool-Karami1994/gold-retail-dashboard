@@ -345,15 +345,37 @@ Customers — admin-only (`requireRole('admin')`):
 | `POST` | `/api/admin/customers` | Create — requires a recently verified `register` OTP for the mobile |
 | `PATCH` | `/api/admin/customers/:id` | Rename. `mobile` is rejected, not ignored |
 
-The signed-in customer's own record — `requireRole('customer')`:
+Transactions — admin-only:
+
+| Method | Path | |
+| --- | --- | --- |
+| `GET` | `/api/admin/transactions` | List; `?customerName=&customerMobile=&invoiceNumber=&dateFrom=&dateTo=&status=&type=&page=&limit=` |
+| `GET` | `/api/admin/transactions/:id` | Detail with customer, issuing admin and payments |
+| `POST` | `/api/admin/transactions` | Create; accepts an initial `payments` array (may be empty) |
+| `POST` | `/api/admin/transactions/:id/payments` | Add one instalment; re-derives `status` |
+
+`totalAmount`, `invoiceNumber` and `status` are **not accepted from the request
+body** — all three are derived by the model, so a client cannot write a total
+that disagrees with weight × price. `dateTo` is treated as inclusive of the
+whole day when it carries no time, since a date picker sends `2026-08-02` and
+`$lte` on midnight would silently exclude that day.
+
+The signed-in customer's own records — `requireRole('customer')`:
 
 | Method | Path | |
 | --- | --- | --- |
 | `GET` | `/api/customer/me` | Own profile |
 | `PATCH` | `/api/customer/me` | Own `firstName` / `lastName` only |
+| `GET` | `/api/customer/transactions` | Own transactions; `?dateFrom=&dateTo=&minAmount=&maxAmount=` |
+| `GET` | `/api/customer/transactions/:id` | Own transaction; 404 for anyone else's |
 
-`/me` takes the id from `req.user`, never from the URL or body, so there is no
-id for a caller to tamper with.
+The customer routes are read-only by design — a customer cannot ring up their
+own sale or declare themselves paid. Scope always comes from `req.user`, so a
+crafted query string cannot widen it, and someone else's invoice answers 404
+rather than 403 so the response can't be used to probe which ids exist.
+
+`/me` and the customer transaction routes take the id from `req.user`, never
+from the URL or body, so there is no id for a caller to tamper with.
 
 **A note on the aggregate names**, which read backwards depending on which side
 of the counter you stand on. They are from the *customer's* point of view:
