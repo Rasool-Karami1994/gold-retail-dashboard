@@ -41,6 +41,15 @@ const schema = z.object({
   OTP_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(3),
   OTP_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().positive().default(10),
 
+  /**
+   * How long a verified 'register' code stays usable as proof for
+   * POST /api/admin/customers. This is the staff member's window to fill in
+   * the customer's name after the code is confirmed -- much longer than the
+   * code's own 2-minute life, because by this point identity is established
+   * and the remaining risk is only a stale form.
+   */
+  REGISTRATION_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+
   /** Which SmsProvider implementation to load. See services/sms/index.ts. */
   SMS_PROVIDER: z.enum(["console"]).default("console"),
 

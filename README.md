@@ -336,6 +336,36 @@ in `config/env.ts`, and add a case to the factory. Callers only ever see
 | `PATCH` | `/api/v1/courses/:id` | Update |
 | `DELETE` | `/api/v1/courses/:id` | Delete |
 
+Customers — admin-only (`requireRole('admin')`):
+
+| Method | Path | |
+| --- | --- | --- |
+| `GET` | `/api/admin/customers` | List; `?search=&page=&limit=`. Each row carries `transactionCount`, `totalPurchased`, `totalSold` |
+| `GET` | `/api/admin/customers/:id` | Detail + totals + paginated transaction history |
+| `POST` | `/api/admin/customers` | Create — requires a recently verified `register` OTP for the mobile |
+| `PATCH` | `/api/admin/customers/:id` | Rename. `mobile` is rejected, not ignored |
+
+The signed-in customer's own record — `requireRole('customer')`:
+
+| Method | Path | |
+| --- | --- | --- |
+| `GET` | `/api/customer/me` | Own profile |
+| `PATCH` | `/api/customer/me` | Own `firstName` / `lastName` only |
+
+`/me` takes the id from `req.user`, never from the URL or body, so there is no
+id for a caller to tamper with.
+
+**A note on the aggregate names**, which read backwards depending on which side
+of the counter you stand on. They are from the *customer's* point of view:
+`totalPurchased` sums transactions of type `sell` (the shop sold to them) and
+`totalSold` sums type `buy`. Both are gross deal value, not amounts settled —
+what is still owed, and in which direction, is `remainingAmount` per
+transaction.
+
+The list runs one aggregation that paginates *before* the `$lookup`, so the
+join touches only the current page's customers, and groups by type inside the
+join so at most two rows come back per customer rather than a whole history.
+
 The `courses` resource is a worked example of the layering — route → validate →
 controller → service → model. Copy its shape for new resources.
 

@@ -6,7 +6,9 @@ import morgan from "morgan";
 import { env } from "./config/env.js";
 import { apiRouter } from "./routes/index.js";
 import { adminAuthRouter } from "./routes/admin-auth.routes.js";
+import { adminCustomerRouter } from "./routes/admin-customer.routes.js";
 import { customerAuthRouter } from "./routes/customer-auth.routes.js";
+import { customerMeRouter } from "./routes/customer-me.routes.js";
 import { authenticate } from "./middleware/auth.js";
 import { errorHandler, notFound } from "./middleware/error-handler.js";
 
@@ -39,7 +41,9 @@ export function createApp(): Express {
   // Auth sits at /api/* per the specified route shape; the resource API stays
   // versioned under /api/v1.
   app.use("/api/admin/auth", adminAuthRouter);
+  app.use("/api/admin/customers", adminCustomerRouter);
   app.use("/api/customer/auth", customerAuthRouter);
+  app.use("/api/customer/me", customerMeRouter);
   app.use("/api/v1", apiRouter);
 
   // Order matters: 404 first, then the error handler that renders it.

@@ -61,6 +61,17 @@ const otpRequestSchema = new Schema(
       default: false,
     },
 
+    /**
+     * When the code was accepted. A verified 'register' record is the proof
+     * that POST /api/admin/customers checks before creating a customer, and
+     * that check is time-bounded -- hence an explicit timestamp rather than
+     * leaning on `updatedAt`, which any later write would move.
+     */
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
+
     // Lets the verify endpoint lock out brute force without a separate store.
     attempts: {
       type: Number,
@@ -99,6 +110,9 @@ otpRequestSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // The verify path: newest unverified code for this mobile and purpose.
 otpRequestSchema.index({ mobile: 1, purpose: 1, createdAt: -1 });
+
+// The registration path: "was this mobile recently verified for register?"
+otpRequestSchema.index({ mobile: 1, purpose: 1, verified: 1, verifiedAt: -1 });
 
 // Rate limiting: how many codes has this number asked for recently?
 otpRequestSchema.index({ mobile: 1, createdAt: -1 });

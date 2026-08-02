@@ -156,6 +156,18 @@ export async function verifyOtp(
   }
 
   otp.verified = true;
+  otp.verifiedAt = new Date();
+
+  if (purpose === "register") {
+    // This record is the proof POST /api/admin/customers looks for, but the
+    // TTL index would sweep it ~2 minutes after issue -- before the staff
+    // member has finished typing the customer's name. Push `expiresAt` out to
+    // the end of the registration window so the proof outlives the code.
+    otp.expiresAt = new Date(
+      Date.now() + env.REGISTRATION_WINDOW_MINUTES * 60 * 1000,
+    );
+  }
+
   await otp.save();
 
   if (purpose === "register") {
