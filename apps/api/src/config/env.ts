@@ -53,6 +53,28 @@ const schema = z.object({
   /** Which SmsProvider implementation to load. See services/sms/index.ts. */
   SMS_PROVIDER: z.enum(["console"]).default("console"),
 
+  /* ---- Invoices -------------------------------------------------------- */
+
+  /**
+   * Public origin of this API, used to build the absolute invoice URL that
+   * goes out by SMS. Must be reachable from a customer's phone -- localhost
+   * is fine in dev and wrong everywhere else.
+   */
+  PUBLIC_API_URL: z.string().url().default("http://localhost:4000"),
+
+  /**
+   * Path to a Chrome/Chromium binary for PDF rendering.
+   *
+   * We use puppeteer-core, which drives an existing browser rather than
+   * downloading its own -- Google's browser CDN returns 403 from some regions,
+   * which makes the bundled-Chromium install fail outright. Leave unset to
+   * auto-detect the usual install locations; set it explicitly in Docker.
+   */
+  CHROME_EXECUTABLE_PATH: z.string().optional(),
+
+  /** Where generated PDFs are written. Relative paths resolve to the api root. */
+  INVOICE_STORAGE_DIR: z.string().default("uploads/invoices"),
+
   /* ---- Seeding --------------------------------------------------------- */
 
   // Consumed only by `pnpm --filter api seed:admin`, never by the server.

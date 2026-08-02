@@ -1,6 +1,10 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import * as transactionService from "../services/transaction.service.js";
+import {
+  generateInvoicePdf,
+  generateInvoicePdfInBackground,
+} from "../services/invoice.js";
 import { validated } from "../middleware/validate.js";
 import { HttpError } from "../middleware/error-handler.js";
 import {
@@ -109,7 +113,27 @@ export async function create(req: Request, res: Response) {
   if (!adminId) throw new HttpError(401, "Authentication required");
 
   const transaction = await transactionService.createTransaction(body, adminId);
+
+  // Started, not awaited. Chrome takes a second or more, and the sale is
+  // already recorded -- making the cashier wait on a PDF, or failing the
+  // create because rendering broke, would both be wrong. `invoicePdfUrl` is
+  // null in this response and populated on the next read; use the regenerate
+  // endpoint below if it never appears.
+  generateInvoicePdfInBackground(transaction.id as string);
+
   res.status(201).json(transaction);
+}
+
+/**
+ * POST /api/admin/transactions/:id/invoice
+ *
+ * Renders the PDF synchronously and returns its URL. Two uses: retrying a
+ * background generation that failed, and re-rendering after payments were
+ * added so the printed invoice matches the current balance.
+ */
+export async function regenerateInvoice(req: Request, res: Response) {
+  const result = await generateInvoicePdf(req.params.id as string);
+  res.status(201).json(result);
 }
 
 /** GET /api/admin/transactions */

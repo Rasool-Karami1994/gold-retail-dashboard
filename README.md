@@ -360,6 +360,37 @@ that disagrees with weight × price. `dateTo` is treated as inclusive of the
 whole day when it carries no time, since a date picker sends `2026-08-02` and
 `$lte` on midnight would silently exclude that day.
 
+Dashboard stats — admin-only. The frontend resolves its today/week/month/year/
+custom picker into explicit dates and sends `from`/`to`; nothing server-side
+knows about presets.
+
+| Method | Path | |
+| --- | --- | --- |
+| `GET` | `/api/admin/stats/volume` | `{ soldGrams, boughtGrams }` for the range |
+| `GET` | `/api/admin/stats/amount` | `{ soldAmount, boughtAmount }` for the range |
+| `GET` | `/api/admin/stats/debt-credit-amount` | Outstanding Toman, as of now |
+| `GET` | `/api/admin/stats/debt-credit-grams` | The same balances in grams |
+| `GET` | `/api/admin/stats/open-transactions` | Paginated unsettled invoices; `?type=&page=&limit=` |
+
+**Two different time semantics live here, and confusing them produces wrong
+numbers.** `/volume` and `/amount` are *flow* — what moved during the range,
+filtered on `createdAt`. The two `debt-credit-*` routes are *stock* — what is
+outstanding right now, deliberately **not** date-filtered, because a debt from
+two years ago is still owed today and dropping it for falling outside "this
+month" would understate the balance.
+
+`/debt-credit-grams` converts each open transaction at its **own**
+`dailyGoldPricePerGram` — the rate that deal was struck at — and only then
+sums. Converting the aggregate total at today's rate would silently restate
+historic debts at the current gold price, which is a different and wrong
+number.
+
+`remainingAmount` is a virtual, so it does not exist in the database and no
+pipeline can read it. The aggregation equivalent lives in
+[`transaction.model.ts`](apps/api/src/models/transaction.model.ts) as
+`withRemainingFields()`, directly beneath the virtual it mirrors — change one
+and you must change the other.
+
 The signed-in customer's own records — `requireRole('customer')`:
 
 | Method | Path | |
@@ -368,6 +399,36 @@ The signed-in customer's own records — `requireRole('customer')`:
 | `PATCH` | `/api/customer/me` | Own `firstName` / `lastName` only |
 | `GET` | `/api/customer/transactions` | Own transactions; `?dateFrom=&dateTo=&minAmount=&maxAmount=` |
 | `GET` | `/api/customer/transactions/:id` | Own transaction; 404 for anyone else's |
+
+Invoices:
+
+| Method | Path | |
+| --- | --- | --- |
+| `POST` | `/api/admin/transactions/:id/invoice` | Render (or re-render) the PDF; admin-only, synchronous |
+| `GET` | `/api/invoices/:filename` | **Public, no auth** — the link sent by SMS |
+
+Creating a transaction kicks off a render in the background, so the cashier
+never waits on Chrome and a rendering failure cannot fail a recorded sale.
+`invoicePdfUrl` is therefore `null` in the create response and populated a
+second or two later; the endpoint above retries or refreshes it.
+
+**The public route has no authentication on purpose** — a customer opens the
+link from an SMS without an account, which makes the URL itself the credential.
+That only holds because the filename carries 128 bits of entropy
+(`INV-20260802-0007-<32 hex>.pdf`). Naming files after the invoice number alone
+would let anyone walk a day's sales and read customer names, numbers and
+amounts. The route matches an exact allowlist pattern before touching the
+filesystem, and responses are `no-store` + `noindex` so a leaked link doesn't
+end up in a proxy cache or a search index.
+
+PDFs are rendered with **`puppeteer-core`, not `puppeteer`** — the full package
+downloads its own Chromium from `storage.googleapis.com`, which returns 403
+from Iran and makes `pnpm install` fail outright. puppeteer-core is the same
+library driving a browser that is already installed; set
+`CHROME_EXECUTABLE_PATH` or let it auto-detect. Vazir is vendored into
+`apps/api/assets/fonts` and inlined as base64 in the template, because a
+headless browser will happily print before an external font loads and Persian
+text in a fallback face is tofu.
 
 The customer routes are read-only by design — a customer cannot ring up their
 own sale or declare themselves paid. Scope always comes from `req.user`, so a

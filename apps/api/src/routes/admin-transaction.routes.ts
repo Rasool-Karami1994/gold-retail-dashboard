@@ -31,3 +31,10 @@ adminTransactionRouter.post(
   validate(controller.addPaymentSchema),
   asyncHandler(controller.createPayment),
 );
+
+// Synchronous, unlike the background render on create -- the caller is asking
+// for the PDF and wants to know whether it worked.
+adminTransactionRouter.post(
+  "/:id/invoice",
+  asyncHandler(controller.regenerateInvoice),
+);

@@ -12,6 +12,7 @@ import { CustomerModel } from "../models/customer.model.js";
 import { HttpError } from "../middleware/error-handler.js";
 import { normalizeMobile } from "../lib/mobile.js";
 import { escapeRegex } from "../lib/regex.js";
+import { dateRangeClause } from "../lib/date-range.js";
 
 /**
  * All database access for transactions.
@@ -121,32 +122,6 @@ export interface AdminListFilters {
   dateTo?: Date;
   status?: TransactionStatus;
   type?: TransactionType;
-}
-
-/**
- * `dateTo` is treated as inclusive of the whole day when it carries no time.
- *
- * A UI date picker sends `2026-08-02`, which parses to midnight -- filtering
- * `$lte` on that would silently exclude everything that happened that day.
- * A caller who wants a precise instant sends a full timestamp and gets it
- * used verbatim.
- */
-function inclusiveEnd(date: Date): Date {
-  const isMidnightUtc =
-    date.getUTCHours() === 0 &&
-    date.getUTCMinutes() === 0 &&
-    date.getUTCSeconds() === 0 &&
-    date.getUTCMilliseconds() === 0;
-
-  return isMidnightUtc ? new Date(date.getTime() + 86_400_000 - 1) : date;
-}
-
-function dateRangeClause(from?: Date, to?: Date) {
-  if (!from && !to) return undefined;
-  return {
-    ...(from ? { $gte: from } : {}),
-    ...(to ? { $lte: inclusiveEnd(to) } : {}),
-  };
 }
 
 /**
