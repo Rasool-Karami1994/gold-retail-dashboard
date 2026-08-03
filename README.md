@@ -46,6 +46,11 @@ pnpm dev
 `concurrently` runs them in one terminal with prefixed, colour-coded output:
 web on http://localhost:3000, API on http://localhost:4000. `Ctrl-C` stops both.
 
+> The API port comes from `PORT` in `apps/api/.env`. If something else on your
+> machine already holds 4000, change it there — and change `PUBLIC_API_URL` to
+> match, plus `NEXT_PUBLIC_API_URL` in `apps/web/.env.local`, or the web app
+> will call the wrong origin and invoice links will point at a dead port.
+
 To run just one:
 
 ```bash
@@ -159,9 +164,9 @@ Web Crypto but not Node's `crypto`. That means **this app needs the same
 > to show, not what data you can read — the API re-checks the same cookie on
 > every call. Bypassing the middleware exposes empty placeholder pages, not data.
 
-Cookies are not port-scoped, so in local dev the cookie the API sets on
-`localhost:4000` is sent to `localhost:3000` unchanged. In production the two
-apps must share a site, or sit behind one proxy.
+Cookies are not port-scoped, so in local dev the cookie the API sets is sent to
+the web app on a different port unchanged. In production the two apps must
+share a site, or sit behind one proxy.
 
 ### RTL and locale
 
