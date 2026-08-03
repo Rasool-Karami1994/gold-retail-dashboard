@@ -8,12 +8,16 @@ import { toLatinDigits } from "@/lib/mobile";
  * Segmented one-time-code field, one box per digit, as in
  * /design-reference/stepper-otpFiled.jpg.
  *
- * Boxes are laid out in the document's RTL direction, so box 1 sits on the
- * right and the code fills leftwards -- which is where a Persian-speaking user
- * looks first. The value handed up is always a plain ASCII string: every entry
- * point runs through `toLatinDigits`, because the API validates the code with
- * an ASCII `^\d{5}$` and a code typed on a Persian keyboard would otherwise be
- * rejected as malformed.
+ * The row is `dir="ltr"` inside an otherwise RTL page. A one-time code is a
+ * number, not Persian text: its digits are ordered most-significant-first and
+ * read left to right, exactly like the mobile number two lines above it. Left
+ * in the document's RTL direction the boxes would fill rightwards, so a code
+ * read off a phone as 1-2-3-4-5 would appear on screen as 5-4-3-2-1.
+ *
+ * The value handed up is always a plain ASCII string: every entry point runs
+ * through `toLatinDigits`, because the API validates the code with an ASCII
+ * `^\d{5}$` and a code typed on a Persian keyboard would otherwise be rejected
+ * as malformed.
  *
  * The inputs deliberately have NO `maxLength`. It would truncate a pasted code
  * to its first character, and pasting the whole thing out of an SMS is the most
@@ -116,18 +120,26 @@ export function OtpInput({
       return;
     }
 
-    // Arrows follow the visual order, which is reversed under RTL.
-    if (event.key === "ArrowRight") {
+    // Arrows follow the visual order, which the container's dir="ltr" makes the
+    // same as the index order -- unlike the rest of this page.
+    if (event.key === "ArrowLeft") {
       event.preventDefault();
       focusBox(index - 1);
-    } else if (event.key === "ArrowLeft") {
+    } else if (event.key === "ArrowRight") {
       event.preventDefault();
       focusBox(index + 1);
     }
   };
 
   return (
-    <div role="group" aria-label={ariaLabel} className="flex gap-2">
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      dir="ltr"
+      // w-fit so the LTR row does not stretch and pull the boxes away from the
+      // inline-start edge the rest of the form is aligned to.
+      className="flex w-fit gap-2"
+    >
       {chars.map((char, index) => (
         <input
           key={index}
