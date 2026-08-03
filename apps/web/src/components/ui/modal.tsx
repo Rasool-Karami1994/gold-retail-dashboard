@@ -3,12 +3,14 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 
-type Size = "sm" | "md" | "lg";
+type Size = "sm" | "md" | "lg" | "xl";
 
 const sizes: Record<Size, string> = {
   sm: "max-w-md",
   md: "max-w-lg",
   lg: "max-w-2xl",
+  // For wide content -- a multi-column table is unreadable squeezed into `lg`.
+  xl: "max-w-5xl",
 };
 
 export interface ModalProps {

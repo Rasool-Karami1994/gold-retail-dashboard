@@ -1,38 +1,41 @@
-import Link from "next/link";
-import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
+import { BalanceSection } from "./balance-section";
+import { VolumeAmountSection } from "./volume-amount-section";
 
 /**
- * Admin landing page. Placeholder -- it exists so the middleware's post-login
- * redirect target resolves. Reaching it proves a valid admin cookie was
- * present.
+ * Admin dashboard.
+ *
+ * A server component that composes client sections. Each section owns its own
+ * queries and range state, so adding section 2 (debt/credit) later does not
+ * touch this file beyond one more line.
  */
 export default function AdminOverviewPage() {
   return (
-    <main className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-12">
-      <header className="flex flex-col gap-1">
-        <span className="text-sm text-link">پنل مدیریت</span>
-        <h1 className="text-2xl font-bold">نمای کلی</h1>
-      </header>
+    <div className="flex flex-col gap-6 p-6">
+      <PageHeader
+        eyebrow="پنل مدیریت"
+        title="نمای کلی"
+        description="گزارش خرید و فروش در بازه‌ی انتخاب‌شده."
+      />
 
-      <Card>
-        <CardContent className="flex flex-col gap-2">
-          <CardTitle>خوش آمدید</CardTitle>
-          <CardDescription>
-            این صفحه فقط برای کارکنان وارد شده قابل مشاهده است.
-          </CardDescription>
-        </CardContent>
-      </Card>
+      {/* 1 — flow: what moved during a period. */}
+      <VolumeAmountSection />
 
-      <Card interactive>
-        <CardContent>
-          <Link href="/admin/design" className="flex flex-col gap-1">
-            <CardTitle>کتابخانه‌ی کامپوننت‌ها</CardTitle>
-            <CardDescription>
-              مرجع بصری توکن‌ها و کامپوننت‌های پایه
-            </CardDescription>
-          </Link>
-        </CardContent>
-      </Card>
-    </main>
+      {/* 2 and 3 — stock: what is outstanding right now, in each unit. */}
+      <SectionDivider title="مانده حساب‌ها (تومان)" />
+      <BalanceSection unit="amount" />
+
+      <SectionDivider title="مانده حساب‌ها (معادل گرم)" />
+      <BalanceSection unit="grams" />
+    </div>
+  );
+}
+
+function SectionDivider({ title }: { title: string }) {
+  return (
+    <div className="flex items-center gap-3 pt-2">
+      <h2 className="shrink-0 text-sm font-bold text-fg-secondary">{title}</h2>
+      <span aria-hidden="true" className="h-px flex-1 bg-border" />
+    </div>
   );
 }

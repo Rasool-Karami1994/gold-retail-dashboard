@@ -279,6 +279,63 @@ transactionSchema.virtual("balanceDirection").get(function () {
   return this.type === "sell" ? "customer-owes-shop" : "shop-owes-customer";
 });
 
+/* ---- Aggregation equivalents --------------------------------------------- */
+
+/**
+ * The virtuals above exist only on a hydrated document, so an aggregation
+ * pipeline cannot see them -- it runs inside MongoDB, where `remainingAmount`
+ * is not a stored field. Reporting queries therefore have to recompute it.
+ *
+ * These stages are that recomputation, and they live here rather than in the
+ * stats service so the two definitions sit within a screen of each other.
+ *
+ *   !! If you change the `remainingAmount` virtual above, change this too. !!
+ *
+ * The arithmetic is deliberately identical: subtract, round to 2 decimals,
+ * then clamp at zero so an overpayment reads as settled rather than as a
+ * negative debt.
+ */
+export function withRemainingFields() {
+  return [
+    { $addFields: { paidAmount: { $sum: "$payments.amount" } } },
+    {
+      $addFields: {
+        remainingAmount: {
+          $max: [
+            0,
+            { $round: [{ $subtract: ["$totalAmount", "$paidAmount"] }, 2] },
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
+        /**
+         * What the outstanding balance is worth in gold, valued at the rate
+         * the deal itself was struck at -- not today's rate. A debt agreed at
+         * last year's price is still that many grams.
+         *
+         * The guard is not paranoia: `dailyGoldPricePerGram` has `min: 0`, and
+         * dividing by zero in an aggregation yields an error that kills the
+         * whole pipeline rather than one row.
+         */
+        remainingGrams: {
+          $cond: [
+            { $gt: ["$dailyGoldPricePerGram", 0] },
+            {
+              $round: [
+                { $divide: ["$remainingAmount", "$dailyGoldPricePerGram"] },
+                3,
+              ],
+            },
+            0,
+          ],
+        },
+      },
+    },
+  ];
+}
+
 /* ---- Hooks --------------------------------------------------------------- */
 
 transactionSchema.pre("validate", async function (next) {

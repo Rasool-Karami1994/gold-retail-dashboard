@@ -10,7 +10,14 @@ build/
 next-env.d.ts
 .DS_Store
 
+# Generated invoice PDFs. Regenerable from the transaction, and they contain
+# customer names, numbers and amounts -- not something to put in git.
+apps/api/uploads/
+
 # Claude Code: share the project settings and the /commit skill, keep personal
 # permission grants and scratch files local.
 .claude/settings.local.json
 .claude/*.tmp.*
+# Transient: the commit message for the turn in progress, consumed by
+# .claude/scripts/auto-commit.sh.
+.claude/commit-msg

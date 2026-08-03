@@ -50,15 +50,61 @@ const schema = z.object({
    */
   REGISTRATION_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
 
-  /** Which SmsProvider implementation to load. See services/sms/index.ts. */
-  SMS_PROVIDER: z.enum(["console"]).default("console"),
+  /** Which SmsProvider implementation to load. See services/sms.ts. */
+  SMS_PROVIDER: z.enum(["console", "kavenegar"]).default("console"),
+
+  /**
+   * Kavenegar credentials. Optional at the schema level because the console
+   * provider needs neither; the refinement below makes the key mandatory once
+   * SMS_PROVIDER=kavenegar, so a misconfigured deployment fails at boot rather
+   * than on the first customer login.
+   */
+  KAVENEGAR_API_KEY: z.string().optional(),
+  /**
+   * Sending line, e.g. 100020003. Only used for plain messages -- one-time
+   * codes go through an approved template on verify/lookup, which uses the
+   * line configured on the template instead.
+   */
+  KAVENEGAR_SENDER: z.string().optional(),
+
+  /* ---- Invoices -------------------------------------------------------- */
+
+  /**
+   * Public origin of this API, used to build the absolute invoice URL that
+   * goes out by SMS. Must be reachable from a customer's phone -- localhost
+   * is fine in dev and wrong everywhere else.
+   */
+  PUBLIC_API_URL: z.string().url().default("http://localhost:4000"),
+
+  /**
+   * Path to a Chrome/Chromium binary for PDF rendering.
+   *
+   * We use puppeteer-core, which drives an existing browser rather than
+   * downloading its own -- Google's browser CDN returns 403 from some regions,
+   * which makes the bundled-Chromium install fail outright. Leave unset to
+   * auto-detect the usual install locations; set it explicitly in Docker.
+   */
+  CHROME_EXECUTABLE_PATH: z.string().optional(),
+
+  /** Where generated PDFs are written. Relative paths resolve to the api root. */
+  INVOICE_STORAGE_DIR: z.string().default("uploads/invoices"),
 
   /* ---- Seeding --------------------------------------------------------- */
 
   // Consumed only by `pnpm --filter api seed:admin`, never by the server.
   SEED_ADMIN_USERNAME: z.string().optional(),
   SEED_ADMIN_PASSWORD: z.string().optional(),
-});
+})
+  // Catch a half-configured gateway at boot. Without this the process starts
+  // happily and the first customer to request a code gets a 502.
+  .refine(
+    (config) =>
+      config.SMS_PROVIDER !== "kavenegar" || Boolean(config.KAVENEGAR_API_KEY),
+    {
+      path: ["KAVENEGAR_API_KEY"],
+      message: "KAVENEGAR_API_KEY is required when SMS_PROVIDER=kavenegar",
+    },
+  );
 
 const parsed = schema.safeParse(process.env);
 

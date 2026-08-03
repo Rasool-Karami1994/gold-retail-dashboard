@@ -48,6 +48,12 @@ fi
 
 git add -A >/dev/null 2>&1
 
+# The message file is scaffolding for this commit, not part of it. .gitignore
+# already excludes it, but unstage it explicitly so the script stays correct if
+# this setup is copied to a repo without that entry -- otherwise the file gets
+# committed and then its deletion shows up as a spurious follow-up commit.
+git reset -q -- .claude/commit-msg >/dev/null 2>&1
+
 # Nothing staged after `add -A` means nothing changed. Silent no-op: this is
 # the common case on turns that only read files.
 if git diff --cached --quiet 2>/dev/null; then
@@ -56,6 +62,55 @@ fi
 
 files=$(git diff --cached --name-only)
 count=$(printf '%s\n' "$files" | grep -c . )
+
+# ---------------------------------------------------------------------------
+# Preferred path: a message Claude wrote during the turn.
+#
+# A shell script can describe *what* files moved but never *why*, which is the
+# only part of a commit message worth reading later. So Claude writes the real
+# message to .claude/commit-msg before finishing, and we use it verbatim.
+# The generated message below is the fallback for turns where that didn't
+# happen.
+#
+# The file is consumed (deleted) on use, so a message can never be reused for a
+# later, unrelated commit.
+# ---------------------------------------------------------------------------
+msgfile=".claude/commit-msg"
+
+use_msgfile=0
+if [ -s "$msgfile" ] && [ -n "$(head -n1 "$msgfile" | tr -d '[:space:]')" ]; then
+  # Guard against a stale file left behind by a crashed or interrupted turn:
+  # anything older than 4 hours describes work that is already committed.
+  if [ -z "$(find "$msgfile" -mmin +240 2>/dev/null)" ]; then
+    use_msgfile=1
+  else
+    rm -f "$msgfile"
+    say "auto-commit: ignored a stale .claude/commit-msg (older than 4h)."
+  fi
+fi
+
+if [ "$use_msgfile" = "1" ]; then
+  subject=$(head -n1 "$msgfile")
+  if ! out=$(git commit -q -F "$msgfile" 2>&1); then
+    say "auto-commit failed: ${out}"
+    exit 0
+  fi
+  rm -f "$msgfile"
+
+  sha=$(git rev-parse --short HEAD)
+  msg="committed ${sha} on ${branch}: ${subject}"
+
+  if [ "${GDASH_AUTOCOMMIT_PUSH:-0}" = "1" ] && git remote get-url origin >/dev/null 2>&1; then
+    if push_out=$(git push -q origin "$branch" 2>&1); then
+      msg="${msg} (pushed)"
+    else
+      msg="${msg} (push failed: ${push_out})"
+    fi
+  fi
+
+  say "$msg"
+  exit 0
+fi
 
 # Scope the message by where the changes landed, so `git log --oneline` stays
 # readable: apps/web -> web, apps/api -> api, mixed or root -> repo.
@@ -76,6 +131,10 @@ else
   summary="update $count files"
 fi
 
+# Fallback subject. Deliberately generic: with no idea what the change was
+# for, a specific-sounding message would just be a confident guess. If you are
+# seeing these in `git log`, Claude isn't writing .claude/commit-msg -- see
+# .claude/skills/commit/SKILL.md.
 subject="chore(${scope}): ${summary}"
 
 # Keep the body short; the diff is the real record.

@@ -1,6 +1,7 @@
 import { createApp } from "./app.js";
 import { env } from "./config/env.js";
 import { connectDatabase, disconnectDatabase } from "./config/database.js";
+import { closeInvoiceBrowser } from "./services/invoice.js";
 
 async function main() {
   await connectDatabase();
@@ -13,6 +14,9 @@ async function main() {
   const shutdown = (signal: string) => {
     console.log(`\n[api] ${signal} received, shutting down`);
     server.close(async () => {
+      // The headless browser is a child process; without this it outlives the
+      // API and leaks a renderer on every restart.
+      await closeInvoiceBrowser();
       await disconnectDatabase();
       process.exit(0);
     });

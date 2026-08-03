@@ -61,12 +61,19 @@ export function ChartCard({
   className,
 }: ChartCardProps) {
   return (
-    <Card className={cn("flex flex-col", className)}>
-      <div className="flex flex-col gap-3 border-b border-border px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+    /**
+     * `@container` makes the header respond to the CARD's width, not the
+     * viewport's. Two of these side by side are each half the page, so a
+     * viewport breakpoint would flip the header to a row while the card is
+     * still far too narrow for a title and five filter chips on one line --
+     * which crushes the title into a two-word column.
+     */
+    <Card className={cn("@container flex flex-col", className)}>
+      <div className="flex flex-col gap-3 border-b border-border px-6 py-4 @2xl:flex-row @2xl:items-center @2xl:justify-between">
         <div className="flex min-w-0 flex-col gap-0.5">
           <h3 className="truncate text-lg font-bold text-fg">{title}</h3>
           {description && (
-            <p className="text-xs text-fg-muted">{description}</p>
+            <p className="text-xs text-fg-muted @2xl:truncate">{description}</p>
           )}
         </div>
 
