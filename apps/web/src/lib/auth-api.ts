@@ -31,6 +31,17 @@ export function logoutAdmin() {
   return apiFetch<void>("/api/admin/auth/logout", { method: "POST" });
 }
 
+/**
+ * Who is signed in. 401s when the cookie is missing, expired or belongs to a
+ * deleted account, which is how the shell learns the session is over.
+ */
+export function fetchAdminMe() {
+  return apiFetch<AdminLoginResponse>("/api/admin/auth/me");
+}
+
+/** Query key for the session lookup, shared so nothing invalidates a typo. */
+export const adminMeKey = ["admin", "me"] as const;
+
 /** Shapes the login response into the store's user. */
 export function toAuthUser(response: AdminLoginResponse): AuthUser {
   return {

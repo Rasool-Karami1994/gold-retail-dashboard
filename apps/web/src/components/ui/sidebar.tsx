@@ -26,6 +26,16 @@ export interface SidebarItem {
    * this for links like "/" that would otherwise match everything.
    */
   exact?: boolean;
+  /**
+   * Full control over the active test, for the case prefix matching gets
+   * wrong: a parent link like `/admin/transactions` and a sibling below it
+   * like `/admin/transactions/new` would otherwise both light up on the
+   * child's route. `exact` fixes that but then breaks detail pages such as
+   * `/admin/transactions/:id`, which should still mark the parent.
+   *
+   * Takes precedence over `exact` when both are given.
+   */
+  activeWhen?: (pathname: string) => boolean;
 }
 
 export interface SidebarProps {
@@ -92,9 +102,12 @@ export function Sidebar({ items, header, footer, className }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto overflow-x-hidden p-3">
         <ul className="flex flex-col gap-1">
           {items.map((item) => {
-            const active = item.exact
-              ? pathname === item.href
-              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active = item.activeWhen
+              ? item.activeWhen(pathname)
+              : item.exact
+                ? pathname === item.href
+                : pathname === item.href ||
+                  pathname.startsWith(`${item.href}/`);
 
             return (
               <li key={item.href}>
