@@ -4,6 +4,16 @@ const BASE_URL =
 /** Origin of the API, without the /api/v1 suffix -- auth lives at /api/*. */
 const API_ORIGIN = BASE_URL.replace(/\/api\/v1\/?$/, "");
 
+/**
+ * The envelope every paginated list endpoint answers with. Defined here rather
+ * than next to any one resource because customers, transactions and the stats
+ * lists all share it -- a second copy would be a second thing to keep in sync.
+ */
+export interface Paginated<T> {
+  items: T[];
+  pagination: { page: number; limit: number; total: number; pages: number };
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,

@@ -1,4 +1,12 @@
 export { Button, type ButtonProps } from "./button";
+// From button-styles, not button: that module is `"use client"`, and a server
+// component cannot call a function exported from one. See button-styles.ts.
+export {
+  buttonStyles,
+  type ButtonStyleOptions,
+  type ButtonVariant,
+  type ButtonSize,
+} from "./button-styles";
 export { Input, type InputProps } from "./input";
 export { Select, type SelectProps } from "./select";
 export {

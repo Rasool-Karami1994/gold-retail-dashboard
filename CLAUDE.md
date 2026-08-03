@@ -5,6 +5,10 @@ v4, React 19) and `apps/api` (Express 4, TypeScript ESM, Mongoose).
 Persian/RTL throughout. [README.md](README.md) documents every endpoint and the
 design tokens.
 
+## Design reference
+Original UI screenshots for style matching: /design-reference/
+Consult when building new components to stay visually consistent.
+
 ## Where the project is
 
 Built and verified against live Mongo:
@@ -16,9 +20,11 @@ Built and verified against live Mongo:
 - **Web** — design tokens + base UI kit (Button, Input, Select, Card, Modal,
   DataTable, DateRangeFilter, ChartCard, Sidebar, PageHeader, Toast); Zustand
   stores; TanStack Query; RTL middleware guard; admin login; admin shell
-  (sidebar + top bar + logout); `/admin/overview` sections 1–3.
+  (sidebar + top bar + logout); `/admin/overview` sections 1–3;
+  `/admin/customers` (debounced server-side search + aggregates table) and
+  `/admin/customers/new` (the two-step OTP registration wizard).
 
-Not built yet: `/admin/customers`, `/admin/transactions`,
+Not built yet: `/admin/customers/[id]`, `/admin/transactions`,
 `/admin/transactions/new` are **placeholder screens** naming the endpoint each
 will consume. The customer-facing app is `/login` + a placeholder `/dashboard`.
 
@@ -58,6 +64,12 @@ pnpm --filter api seed:admin
   check it before debugging the component.
 - **`tsx watch` doesn't reload if you started the API without `watch`.** An API
   change that "isn't taking effect" is usually this.
+- **`MONGODB_URI` must say `127.0.0.1`, not `localhost`, on this machine.** The
+  native `mongod` service here binds the IPv4 loopback only, and Node resolves
+  `localhost` to `::1` first — so the API hangs at boot with no error and never
+  binds its port, which reads exactly like a dead dev server. `apps/api/.env` is
+  set to `127.0.0.1`; `.env.example` keeps `localhost` because the
+  docker-compose Mongo (`pnpm db:up`) binds both. Don't "fix" the example.
 - **Verification is real HTTP against local Mongo**, not isolated unit tests.
   Scratch scripts go in the session scratchpad, never the repo. Seed data,
   assert, then delete what you seeded — the dev database should be left as you
@@ -96,6 +108,14 @@ pnpm --filter api seed:admin
   `bg-slate-900`.
 - **User-facing strings are Persian.** Map API errors by HTTP status rather than
   forwarding `error.message`; the API answers in English.
+- **A server component cannot call anything exported from a `"use client"`
+  module.** That is why `buttonStyles` lives in `ui/button-styles.ts` rather than
+  beside `Button`. Anything a server page needs — class builders, formatters,
+  constants — belongs in a module without the directive.
+- **Registering a customer is three calls, in order**: request-otp → verify-otp
+  → `POST /api/admin/customers`, all with `purpose: 'register'`. A verified code
+  is spent, so a retry after a failed *create* must not verify again — see the
+  `verified` ref in `customers/new/new-customer-form.tsx`.
 
 ## Commits
 

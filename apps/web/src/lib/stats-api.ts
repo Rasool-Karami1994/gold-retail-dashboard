@@ -1,5 +1,8 @@
-import { apiFetch } from "./api";
+import { apiFetch, type Paginated } from "./api";
 import type { DateRange } from "./jalali";
+
+/** Re-exported so existing importers keep their single import path. */
+export type { Paginated };
 
 /**
  * Dashboard statistics and the transaction list behind them.
@@ -68,11 +71,6 @@ export interface TransactionRow {
   remainingAmount: number;
   status: "open" | "settled";
   createdAt: string;
-}
-
-export interface Paginated<T> {
-  items: T[];
-  pagination: { page: number; limit: number; total: number; pages: number };
 }
 
 export function fetchTransactions(

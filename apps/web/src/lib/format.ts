@@ -8,6 +8,11 @@ import { INTL_LOCALE } from "@/config/locale";
  * JS numbers everywhere else -- formatting happens at the edge, never in state.
  */
 
+/** A plain count, in Persian numerals: ۱۲ */
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat(INTL_LOCALE).format(value);
+}
+
 /** Whole Toman, grouped: ۱۵,۲۲۵,۰۰۰ */
 export function formatToman(value: number): string {
   return new Intl.NumberFormat(INTL_LOCALE, {
