@@ -1,4 +1,5 @@
 import { apiFetch, type Paginated } from "./api";
+import { normalizeMobile } from "./mobile";
 
 /**
  * Customer reads and the two-step "add customer" write.
@@ -55,6 +56,32 @@ export function fetchCustomers({
   return apiFetch<Paginated<CustomerRow>>(
     `/api/admin/customers?${params.toString()}`,
   );
+}
+
+/**
+ * Finds the one customer who owns a mobile number, or null.
+ *
+ * `?search=` is a SUBSTRING match across name and mobile, which is right for a
+ * directory search box and wrong for identifying a person: "0912" would come
+ * back with half the shop. So the match is re-checked here on the normalised
+ * number, and anything short of an exact hit counts as "not registered".
+ *
+ * A small limit rather than 1: the substring may well match several rows, and
+ * the exact one is not guaranteed to sort first.
+ */
+export async function findCustomerByMobile(
+  mobile: string,
+): Promise<CustomerRow | null> {
+  const normalized = normalizeMobile(mobile);
+  if (!normalized) return null;
+
+  const { items } = await fetchCustomers({
+    page: 1,
+    limit: 10,
+    search: normalized,
+  });
+
+  return items.find((item) => normalizeMobile(item.mobile) === normalized) ?? null;
 }
 
 /* ---- Detail -------------------------------------------------------------- */
@@ -194,6 +221,7 @@ export const customerKeys = {
   all: ["customers"] as const,
   list: (page: number, limit: number, search: string) =>
     ["customers", "list", page, limit, search] as const,
+  byMobile: (mobile: string) => ["customers", "by-mobile", mobile] as const,
   // The page is part of the key: it paginates the transaction history, so two
   // pages are two different cache entries for the same customer.
   detail: (id: string, page: number, limit: number) =>

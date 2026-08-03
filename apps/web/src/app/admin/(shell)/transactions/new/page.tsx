@@ -1,12 +1,20 @@
-import { SectionPlaceholder } from "../../_placeholder";
+import { PageHeader } from "@/components/ui";
+import { NewTransactionForm } from "./new-transaction-form";
 
 export default function NewTransactionPage() {
   return (
-    <SectionPlaceholder
-      eyebrow="فاکتورها"
-      title="ثبت معامله"
-      description="ثبت خرید یا فروش طلا برای یک مشتری، به همراه پرداخت‌های اولیه."
-      endpoint="POST /api/admin/transactions"
-    />
+    <div className="flex flex-col gap-6 p-6">
+      <PageHeader
+        breadcrumbs={[
+          { label: "فاکتورها", href: "/admin/transactions" },
+          { label: "ثبت معامله" },
+        ]}
+        eyebrow="پنل مدیریت"
+        title="ثبت معامله"
+        description="با شماره موبایل مشتری شروع کنید؛ باقی فرم پس از انتخاب مشتری باز می‌شود."
+      />
+
+      <NewTransactionForm />
+    </div>
   );
 }

@@ -90,8 +90,89 @@ export function fetchTransactions(
   );
 }
 
+/* ---- Detail -------------------------------------------------------------- */
+
+/** A recorded instalment, as it comes back on a transaction. */
+export interface TransactionPayment {
+  method: "cash" | "bank";
+  amount: number;
+  bankType?: "paya" | "card-to-card" | "bridge";
+  destinationCard?: string;
+  paidAt: string;
+}
+
+export interface TransactionDetail extends TransactionRow {
+  payments: TransactionPayment[];
+  balanceDirection: "customer-owes-shop" | "shop-owes-customer" | "none";
+  /**
+   * Null until the PDF has rendered. The create endpoint starts that render in
+   * the background and answers immediately, so a freshly created transaction
+   * always has null here and gains a URL on a later read.
+   */
+  invoicePdfUrl: string | null;
+  createdBy?: { id: string; username: string; role: string } | null;
+  updatedAt: string;
+}
+
+export function fetchTransaction(id: string) {
+  return apiFetch<TransactionDetail>(
+    `/api/admin/transactions/${encodeURIComponent(id)}`,
+  );
+}
+
+/* ---- Create -------------------------------------------------------------- */
+
+export interface TransactionPaymentInput {
+  method: "cash" | "bank";
+  amount: number;
+  /** Required by the API for bank payments, rejected on cash ones. */
+  bankType?: "paya" | "card-to-card" | "bridge";
+  destinationCard?: string;
+}
+
+/**
+ * `totalAmount`, `invoiceNumber` and `status` are absent on purpose -- all three
+ * are derived by the model's pre-validate hook, and the API rejects a body that
+ * tries to set them. The total shown on the form is a preview of that
+ * calculation, not an input.
+ */
+export interface CreateTransactionInput {
+  /** Customer id, not a mobile: the form resolves the number first. */
+  customer: string;
+  type: "sell" | "buy";
+  goldType: "melted" | "new" | "second-hand";
+  goldWeightGrams: number;
+  dailyGoldPricePerGram: number;
+  payments: TransactionPaymentInput[];
+}
+
+export function createTransaction(input: CreateTransactionInput) {
+  return apiFetch<TransactionDetail>("/api/admin/transactions", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * Renders the invoice PDF synchronously and returns its URL.
+ *
+ * The create endpoint already starts this in the background, so this is the
+ * retry for when that render failed and `invoicePdfUrl` never appeared.
+ * `notify` is left off: re-rendering should not text the customer a second
+ * link.
+ */
+export function regenerateInvoice(id: string) {
+  return apiFetch<{ filename: string; url: string }>(
+    `/api/admin/transactions/${encodeURIComponent(id)}/invoice`,
+    { method: "POST" },
+  );
+}
+
+/* ---- Query keys ---------------------------------------------------------- */
+
 export const transactionKeys = {
   all: ["transactions"] as const,
   list: (filters: TransactionFilters, page: number, limit: number) =>
     ["transactions", "list", transactionQuery(filters), page, limit] as const,
+  detail: (id: string) => ["transactions", "detail", id] as const,
 };

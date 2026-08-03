@@ -23,12 +23,13 @@ Built and verified against live Mongo:
   (sidebar + top bar + logout); `/admin/overview` sections 1–3;
   `/admin/customers` (debounced server-side search + aggregates table),
   `/admin/customers/new` (the two-step OTP registration wizard),
-  `/admin/customers/[id]` (profile + lifetime totals + paginated history) and
-  `/admin/transactions` (URL-driven filters + filter modal).
+  `/admin/customers/[id]` (profile + lifetime totals + paginated history),
+  `/admin/transactions` (URL-driven filters + filter modal) and
+  `/admin/transactions/new` (mobile lookup → deal → payments builder).
 
-Not built yet: `/admin/transactions/[id]` and `/admin/transactions/new` are
-**placeholder screens** naming the endpoint each will consume. The
-customer-facing app is `/login` + a placeholder `/dashboard`.
+Not built yet: `/admin/transactions/[id]` is a **placeholder screen** naming the
+endpoint it will consume. The customer-facing app is `/login` + a placeholder
+`/dashboard`.
 
 `components/transactions/transactions-table.tsx` is the shared transaction list
 — it owns every column's rendering and each screen passes the ids it wants.
@@ -128,7 +129,18 @@ pnpm --filter api seed:admin
 - **Registering a customer is three calls, in order**: request-otp → verify-otp
   → `POST /api/admin/customers`, all with `purpose: 'register'`. A verified code
   is spent, so a retry after a failed *create* must not verify again — see the
-  `verified` ref in `customers/new/new-customer-form.tsx`.
+  `verified` ref in `components/customers/new-customer-wizard.tsx`. That wizard
+  is shared: `/admin/customers/new` renders it in a card, and the new-transaction
+  form opens it in a modal when a mobile matches no customer.
+- **Numbers typed into a form go through `toNumber()`** (the new-transaction
+  `form-schema.ts`), never `Number(value)`. A Persian keyboard produces `۲٫۵`,
+  and `Intl` prints every weight in this app with `٫` (U+066B) and every amount
+  with `٬` (U+066C) — so what the screen shows is exactly what gets typed back.
+  Raw `Number()` returns NaN for all of it.
+- **A `<select>` bound to a zod enum needs `""` preprocessed to `undefined`.**
+  An untouched select holds `""`, which is not an enum member, so the user sees
+  "Invalid enum value" instead of "choose one" — and the resolver's input type
+  stops matching what react-hook-form holds. `requiredEnum()` does both.
 
 ## Commits
 
