@@ -90,6 +90,74 @@ export function fetchTransactions(
   );
 }
 
+/* ---- Outstanding balances ------------------------------------------------ */
+
+/**
+ * These two take no range. They are running totals as of now, not flow through
+ * a period -- a debt raised last year is still owed today, so filtering them by
+ * date would understate the balance. See stats.service.ts on the API side.
+ */
+
+export interface DebtCreditAmount {
+  /** Owed BY customers TO the shop -- unpaid 'sell' invoices. A receivable. */
+  customerDebtToShop: number;
+  /** Owed BY the shop TO customers -- unpaid 'buy' invoices. A payable. */
+  shopDebtToCustomer: number;
+  net: number;
+}
+
+export interface DebtCreditGrams {
+  customerDebtToShopGrams: number;
+  shopDebtToCustomerGrams: number;
+  net: number;
+}
+
+export function fetchDebtCreditAmount() {
+  return apiFetch<DebtCreditAmount>("/api/admin/stats/debt-credit-amount");
+}
+
+export function fetchDebtCreditGrams() {
+  return apiFetch<DebtCreditGrams>("/api/admin/stats/debt-credit-grams");
+}
+
+/* ---- Open transactions --------------------------------------------------- */
+
+export interface OpenTransactionRow {
+  id: string;
+  invoiceNumber: string;
+  customer: TransactionCustomer | null;
+  type: "sell" | "buy";
+  goldType: "melted" | "new" | "second-hand";
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  /** The remainder valued at the rate that deal was struck at. */
+  remainingGrams: number;
+  dailyGoldPricePerGram: number;
+  createdAt: string;
+}
+
+export function fetchOpenTransactions({
+  page,
+  limit,
+  type,
+}: {
+  page: number;
+  limit: number;
+  /** Omit for both sides of the ledger. */
+  type?: "sell" | "buy";
+}) {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+  if (type) params.set("type", type);
+
+  return apiFetch<Paginated<OpenTransactionRow>>(
+    `/api/admin/stats/open-transactions?${params.toString()}`,
+  );
+}
+
 /* ---- Query keys ---------------------------------------------------------- */
 
 /**
@@ -110,4 +178,10 @@ export const statsKeys = {
       page,
       limit,
     ] as const,
+
+  // No range in these keys: the figures are as-of-now, not per-period.
+  debtCreditAmount: () => ["stats", "debt-credit", "amount"] as const,
+  debtCreditGrams: () => ["stats", "debt-credit", "grams"] as const,
+  openTransactions: (page: number, limit: number, type?: "sell" | "buy") =>
+    ["stats", "open-transactions", page, limit, type ?? "all"] as const,
 };
