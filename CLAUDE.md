@@ -24,12 +24,13 @@ Built and verified against live Mongo:
   `/admin/customers` (debounced server-side search + aggregates table),
   `/admin/customers/new` (the two-step OTP registration wizard),
   `/admin/customers/[id]` (profile + lifetime totals + paginated history),
-  `/admin/transactions` (URL-driven filters + filter modal) and
-  `/admin/transactions/new` (mobile lookup → deal → payments builder).
+  `/admin/transactions` (URL-driven filters + filter modal),
+  `/admin/transactions/new` (mobile lookup → deal → payments builder) and
+  `/admin/transactions/[id]` (details, payments, invoice PDF).
 
-Not built yet: `/admin/transactions/[id]` is a **placeholder screen** naming the
-endpoint it will consume. The customer-facing app is `/login` + a placeholder
-`/dashboard`.
+**The whole admin panel is now built** — no placeholder screens remain under
+`/admin`. The customer-facing app is still `/login` + a placeholder
+`/dashboard`, and `_placeholder.tsx` is kept for whatever comes next there.
 
 `components/transactions/transactions-table.tsx` is the shared transaction list
 — it owns every column's rendering and each screen passes the ids it wants.
@@ -160,7 +161,14 @@ Never push unless asked.
 - **No retention policy on `apps/api/uploads/`.** Every invoice render writes a
   new file and regenerating keeps the old one so already-sent SMS links keep
   working. Gitignored, but it grows without bound — needs a cleanup job before
-  production.
+  production. Deleting a file by hand breaks the link on a live record; the fix
+  is `POST /api/admin/transactions/:id/invoice`, which re-renders and repoints
+  `invoicePdfUrl` without re-texting the customer.
+- **Recording a payment has no screen.** `POST /api/admin/transactions/:id/payments`
+  exists and `addPayment()` keeps `status` honest, but the detail page only
+  reads. That endpoint plus a form on `/admin/transactions/[id]` is the natural
+  next step — and remember to re-render the invoice afterwards, since the
+  printed one still shows the old balance.
 - **Inconsistent range params.** `/stats/*` takes `from`/`to`;
   `/admin/transactions` takes `dateFrom`/`dateTo`. Both were specified that way.
   `lib/stats-api.ts` and `lib/transactions-api.ts` hide the difference from

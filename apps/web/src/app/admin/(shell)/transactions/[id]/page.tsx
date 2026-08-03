@@ -1,19 +1,23 @@
-import { SectionPlaceholder } from "../../_placeholder";
+import { TransactionDetail } from "./transaction-detail";
 
 /**
- * Invoice detail -- not built yet.
+ * One invoice: the deal, its balance, its payments and its PDF.
  *
- * It exists because the list's "جزئیات" action links here, and a link into a
- * 404 reads as a broken app rather than an unfinished one. Same reasoning as
- * the other placeholders; see _placeholder.tsx.
+ * A single request answers all of it, so the whole screen is one client
+ * component -- the same reasoning as the customer profile. `params` is a
+ * promise in Next 15; awaiting it here keeps the client component taking a
+ * plain string.
  */
-export default function TransactionDetailPage() {
+export default async function TransactionDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
   return (
-    <SectionPlaceholder
-      eyebrow="فاکتورها"
-      title="جزئیات فاکتور"
-      description="مشخصات معامله، فهرست پرداخت‌ها و لینک فاکتور PDF."
-      endpoint="GET /api/admin/transactions/:id"
-    />
+    <div className="flex flex-col gap-6 p-6">
+      <TransactionDetail id={id} />
+    </div>
   );
 }
