@@ -21,12 +21,18 @@ Built and verified against live Mongo:
   DataTable, DateRangeFilter, ChartCard, Sidebar, PageHeader, Toast); Zustand
   stores; TanStack Query; RTL middleware guard; admin login; admin shell
   (sidebar + top bar + logout); `/admin/overview` sections 1–3;
-  `/admin/customers` (debounced server-side search + aggregates table) and
-  `/admin/customers/new` (the two-step OTP registration wizard).
+  `/admin/customers` (debounced server-side search + aggregates table),
+  `/admin/customers/new` (the two-step OTP registration wizard) and
+  `/admin/customers/[id]` (profile + lifetime totals + paginated history).
 
-Not built yet: `/admin/customers/[id]`, `/admin/transactions`,
-`/admin/transactions/new` are **placeholder screens** naming the endpoint each
-will consume. The customer-facing app is `/login` + a placeholder `/dashboard`.
+Not built yet: `/admin/transactions` and `/admin/transactions/new` are
+**placeholder screens** naming the endpoint each will consume. The
+customer-facing app is `/login` + a placeholder `/dashboard`.
+
+`components/transactions/transactions-table.tsx` is the shared transaction list
+— it owns every column's rendering and each screen passes the ids it wants.
+The overview modal and the customer history both go through it; the
+`/admin/transactions` screen should too rather than growing a third copy.
 
 Branch `feat/transactions-stats-invoices` has an open PR (#1) against `main`.
 Local commits run ahead of the pushed branch — check `git status -sb` before
@@ -149,3 +155,9 @@ Never push unless asked.
   a grouped-by-day variant of those endpoints.
 - **The `courses` resource is leftover scaffolding** from the initial setup and
   is unrelated to the gold-shop domain. Safe to delete.
+- **A customer's net balance is not on the detail screen**, because
+  `GET /api/admin/customers/:id` doesn't return one — its `totals` are count,
+  purchased and sold, all gross. It cannot be summed from the transactions in
+  the response either: that is one page of history, and the two directions have
+  to be netted with the sign applied. `netBalanceForCustomer()` already exists
+  in `transaction.model.ts`; exposing it in that endpoint's `totals` is the fix.

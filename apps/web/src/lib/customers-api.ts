@@ -57,6 +57,77 @@ export function fetchCustomers({
   );
 }
 
+/* ---- Detail -------------------------------------------------------------- */
+
+export interface CustomerDetailCustomer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  mobile: string;
+  /** Virtual on the model, so it arrives already joined. */
+  fullName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One of the customer's transactions.
+ *
+ * These come back **hydrated** rather than lean, which is why `paidAmount`,
+ * `remainingAmount` and `balanceDirection` are present at all -- they are
+ * virtuals, and an aggregation could not have produced them.
+ *
+ * `customer` is NOT populated here (only `createdBy` is), so it is absent from
+ * this type: on this screen every row belongs to the same person anyway.
+ */
+export interface CustomerTransaction {
+  id: string;
+  invoiceNumber: string;
+  type: "sell" | "buy";
+  goldType: "melted" | "new" | "second-hand";
+  goldWeightGrams: number;
+  dailyGoldPricePerGram: number;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  /** Which way an open balance points, already resolved by the model. */
+  balanceDirection: "customer-owes-shop" | "shop-owes-customer" | "none";
+  status: "open" | "settled";
+  invoicePdfUrl: string | null;
+  createdAt: string;
+}
+
+export interface CustomerDetail {
+  customer: CustomerDetailCustomer;
+  /**
+   * Lifetime figures across ALL the customer's transactions, not just the page
+   * below -- computed by their own aggregate on the server. Summing the visible
+   * rows instead would silently report "page 1 of their history" as the total.
+   */
+  totals: {
+    transactionCount: number;
+    totalPurchased: number;
+    totalSold: number;
+  };
+  transactions: CustomerTransaction[];
+  pagination: { page: number; limit: number; total: number; pages: number };
+}
+
+/** The `page`/`limit` here paginate the transaction history, not the customer. */
+export function fetchCustomerDetail(
+  id: string,
+  { page, limit }: { page: number; limit: number },
+) {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+
+  return apiFetch<CustomerDetail>(
+    `/api/admin/customers/${encodeURIComponent(id)}?${params.toString()}`,
+  );
+}
+
 /* ---- Registration -------------------------------------------------------- */
 
 export interface RequestOtpResult {
@@ -123,4 +194,8 @@ export const customerKeys = {
   all: ["customers"] as const,
   list: (page: number, limit: number, search: string) =>
     ["customers", "list", page, limit, search] as const,
+  // The page is part of the key: it paginates the transaction history, so two
+  // pages are two different cache entries for the same customer.
+  detail: (id: string, page: number, limit: number) =>
+    ["customers", "detail", id, page, limit] as const,
 };

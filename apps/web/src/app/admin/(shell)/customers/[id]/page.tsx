@@ -1,19 +1,27 @@
-import { SectionPlaceholder } from "../../_placeholder";
+import { CustomerDetail } from "./customer-detail";
 
 /**
- * Customer profile -- not built yet.
+ * One customer: who they are, what they have traded, and their invoice history.
  *
- * It exists because the directory's "مشاهده پروفایل" action links here, and a
- * link into a 404 reads as a broken app rather than an unfinished one. Same
- * reasoning as the other placeholders; see _placeholder.tsx.
+ * The whole screen is one client component rather than a server page around a
+ * client table, because a single request answers all three parts -- the
+ * customer, the lifetime totals and a page of transactions. Fetching it on the
+ * server would mean either passing the result into a client tree that has to
+ * re-fetch anyway when the pager moves, or two requests for one payload.
+ *
+ * `params` is a promise in Next 15; awaiting it here keeps the client component
+ * taking a plain string.
  */
-export default function CustomerProfilePage() {
+export default async function CustomerDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
   return (
-    <SectionPlaceholder
-      eyebrow="مشتریان"
-      title="پروفایل مشتری"
-      description="مشخصات مشتری، مجموع خرید و فروش، و تاریخچه‌ی معاملات او."
-      endpoint="GET /api/admin/customers/:id"
-    />
+    <div className="flex flex-col gap-6 p-6">
+      <CustomerDetail id={id} />
+    </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/cn";
+import { formatNumber } from "@/lib/format";
 import { Button } from "./button";
 
 /**
@@ -179,7 +180,15 @@ export function DataTable<T>({
   return (
     <div className={cn("flex flex-col gap-4", className)}>
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-        <table className="w-full border-collapse text-sm">
+        {/*
+          `min-w-max` is what makes the `overflow-x-auto` above mean anything.
+          Without it a table is free to shrink below its columns' declared
+          widths, so a wide one silently compressed every cell instead of
+          scrolling -- nine columns of invoice history turned into three-line
+          cells rather than a scrollable row. When the columns do fit, max-content
+          is narrower than the container and `w-full` still wins.
+        */}
+        <table className="w-full min-w-max border-collapse text-sm">
           {caption && <caption className="sr-only">{caption}</caption>}
 
           <thead>
@@ -316,8 +325,11 @@ function Pagination({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Through formatNumber like every other figure in the app: raw
+          interpolation renders Latin digits, which sat next to Persian numerals
+          in the very columns being counted. */}
       <p className="text-xs text-fg-muted">
-        نمایش {first}–{last} از {total}
+        نمایش {formatNumber(first)}–{formatNumber(last)} از {formatNumber(total)}
       </p>
 
       <div className="flex items-center gap-2">
@@ -331,7 +343,7 @@ function Pagination({
         </Button>
 
         <span className="px-2 text-xs text-fg-secondary">
-          صفحه {page} از {pageCount}
+          صفحه {formatNumber(page)} از {formatNumber(pageCount)}
         </span>
 
         <Button
