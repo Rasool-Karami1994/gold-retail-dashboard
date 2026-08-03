@@ -7,6 +7,12 @@
       "runtimeArgs": ["--filter", "web", "dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "api", "dev"],
+      "port": 4100
     }
   ]
 }
