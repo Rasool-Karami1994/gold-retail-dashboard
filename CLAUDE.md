@@ -22,17 +22,20 @@ Built and verified against live Mongo:
   stores; TanStack Query; RTL middleware guard; admin login; admin shell
   (sidebar + top bar + logout); `/admin/overview` sections 1–3;
   `/admin/customers` (debounced server-side search + aggregates table),
-  `/admin/customers/new` (the two-step OTP registration wizard) and
-  `/admin/customers/[id]` (profile + lifetime totals + paginated history).
+  `/admin/customers/new` (the two-step OTP registration wizard),
+  `/admin/customers/[id]` (profile + lifetime totals + paginated history) and
+  `/admin/transactions` (URL-driven filters + filter modal).
 
-Not built yet: `/admin/transactions` and `/admin/transactions/new` are
+Not built yet: `/admin/transactions/[id]` and `/admin/transactions/new` are
 **placeholder screens** naming the endpoint each will consume. The
 customer-facing app is `/login` + a placeholder `/dashboard`.
 
 `components/transactions/transactions-table.tsx` is the shared transaction list
 — it owns every column's rendering and each screen passes the ids it wants.
-The overview modal and the customer history both go through it; the
-`/admin/transactions` screen should too rather than growing a third copy.
+All three consumers go through it (the overview modal, the customer history and
+`/admin/transactions`); add a column there rather than a fourth copy.
+`lib/transactions-api.ts` is the matching client — `transactionQuery()` builds
+both the request and the query key, so the two cannot drift.
 
 Branch `feat/transactions-stats-invoices` has an open PR (#1) against `main`.
 Local commits run ahead of the pushed branch — check `git status -sb` before
@@ -114,6 +117,10 @@ pnpm --filter api seed:admin
   `bg-slate-900`.
 - **User-facing strings are Persian.** Map API errors by HTTP status rather than
   forwarding `error.message`; the API answers in English.
+- **Send dates to the API with `toApiDate()`** (`lib/jalali.ts`), never
+  `toISOString().slice(0,10)`. Ranges are local-midnight boundaries, and
+  `toISOString` reports them in UTC — east of Greenwich that is still the
+  previous day, so every range silently started 24 hours early.
 - **A server component cannot call anything exported from a `"use client"`
   module.** That is why `buttonStyles` lives in `ui/button-styles.ts` rather than
   beside `Button`. Anything a server page needs — class builders, formatters,
@@ -144,7 +151,12 @@ Never push unless asked.
   production.
 - **Inconsistent range params.** `/stats/*` takes `from`/`to`;
   `/admin/transactions` takes `dateFrom`/`dateTo`. Both were specified that way.
-  `lib/stats-api.ts` hides the difference from components. Worth unifying.
+  `lib/stats-api.ts` and `lib/transactions-api.ts` hide the difference from
+  components. Worth unifying.
+- **`/admin/transactions` filters on name, mobile, invoice number and date
+  only.** The endpoint also accepts `status` and `type`, and the table already
+  shows both as badges — wiring them into the filter modal is a small addition
+  to `TransactionFilters` and the form.
 - **Shop details on the invoice are a placeholder** (`SHOP_INFO` in
   `invoice-template.ts`).
 - **Kavenegar credentials are only in `apps/api/.env.example`**, not the web

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Modal, formatJalaliRange, type DateRange } from "@/components/ui";
 import { TransactionsTable } from "@/components/transactions/transactions-table";
-import { fetchTransactions, statsKeys } from "@/lib/stats-api";
+import { fetchTransactions, transactionKeys } from "@/lib/transactions-api";
 
 /**
  * The transactions behind the two charts, for the same range.
@@ -36,9 +36,15 @@ export function TransactionsModal({
     setPage(1);
   }, [range.from, range.to]);
 
+  // The same endpoint /admin/transactions reads, with only the range filled in.
+  const filters = React.useMemo(
+    () => ({ dateFrom: range.from, dateTo: range.to }),
+    [range.from, range.to],
+  );
+
   const { data, isFetching } = useQuery({
-    queryKey: statsKeys.transactions(range, page, PAGE_SIZE),
-    queryFn: () => fetchTransactions(range, { page, limit: PAGE_SIZE }),
+    queryKey: transactionKeys.list(filters, page, PAGE_SIZE),
+    queryFn: () => fetchTransactions(filters, { page, limit: PAGE_SIZE }),
     // Don't fetch a list nobody is looking at.
     enabled: open,
     // Keep the previous page on screen while the next loads, so the table

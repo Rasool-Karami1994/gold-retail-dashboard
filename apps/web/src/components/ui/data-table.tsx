@@ -179,7 +179,17 @@ export function DataTable<T>({
 
   return (
     <div className={cn("flex flex-col gap-4", className)}>
-      <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+      {/*
+        `relative` is load-bearing, not decoration. The accessible caption and
+        the sr-only column headers are `position: absolute`, and `overflow`
+        does not clip an absolutely positioned descendant whose containing
+        block sits outside the scroller. With a static wrapper their containing
+        block was the viewport, so on a table wide enough to scroll they were
+        laid out past its edge and dragged a horizontal scrollbar onto the whole
+        page. Positioning the wrapper makes it their containing block, and the
+        overflow above finally applies to them too.
+      */}
+      <div className="relative overflow-x-auto rounded-lg border border-border bg-surface">
         {/*
           `min-w-max` is what makes the `overflow-x-auto` above mean anything.
           Without it a table is free to shrink below its columns' declared

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { DataTable, type Column } from "@/components/ui";
+import Link from "next/link";
+import { DataTable, buttonStyles, type Column } from "@/components/ui";
 import { formatJalali } from "@/lib/jalali";
 import { formatGrams, formatToman } from "@/lib/format";
 
@@ -50,13 +51,23 @@ export type TransactionColumnId =
   | "invoiceNumber"
   | "date"
   | "customer"
+  | "customerName"
+  | "customerMobile"
   | "type"
   | "goldType"
   | "weight"
   | "totalAmount"
   | "paidAmount"
   | "remainingAmount"
-  | "status";
+  | "status"
+  | "details";
+
+/**
+ * Hardcoded rather than taken as a prop: there is one transaction detail route
+ * in this app, the same way admin-sidebar.tsx owns its own hrefs. A prop would
+ * be indirection with a single caller.
+ */
+const transactionDetail = (id: string) => `/admin/transactions/${id}`;
 
 const TYPE_LABELS: Record<TransactionKind, string> = {
   sell: "فروش",
@@ -94,6 +105,7 @@ const COLUMNS: Record<TransactionColumnId, Column<TransactionTableRow>> = {
     width: "7.5rem",
   },
 
+  /** Name over mobile in one cell, for narrow contexts like the modal. */
   customer: {
     id: "customer",
     header: "مشتری",
@@ -110,6 +122,36 @@ const COLUMNS: Record<TransactionColumnId, Column<TransactionTableRow>> = {
       ) : (
         <span className="text-fg-muted">—</span>
       ),
+  },
+
+  /** Split from the mobile, for a wide list that can afford both columns. */
+  customerName: {
+    id: "customerName",
+    header: "مشتری",
+    cell: (row) =>
+      row.customer ? (
+        <span className="whitespace-nowrap">
+          {`${row.customer.firstName} ${row.customer.lastName}`.trim()}
+        </span>
+      ) : (
+        // The API populates this, so null means the customer row is gone --
+        // worth saying rather than rendering a blank cell.
+        <span className="text-fg-muted">حذف‌شده</span>
+      ),
+  },
+
+  customerMobile: {
+    id: "customerMobile",
+    header: "شماره موبایل",
+    cell: (row) =>
+      row.customer ? (
+        <span className="font-mono text-xs" dir="ltr">
+          {row.customer.mobile}
+        </span>
+      ) : (
+        <span className="text-fg-muted">—</span>
+      ),
+    width: "10rem",
   },
 
   type: {
@@ -197,6 +239,21 @@ const COLUMNS: Record<TransactionColumnId, Column<TransactionTableRow>> = {
       </span>
     ),
     width: "6.5rem",
+  },
+
+  details: {
+    id: "details",
+    header: <span className="sr-only">عملیات</span>,
+    cell: (row) => (
+      <Link
+        href={transactionDetail(row.id)}
+        className={buttonStyles({ variant: "secondary", size: "sm" })}
+      >
+        جزئیات
+      </Link>
+    ),
+    align: "end",
+    width: "6rem",
   },
 };
 
