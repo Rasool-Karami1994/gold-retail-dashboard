@@ -1,3 +1,4 @@
+import { SidebarMenuButton } from "@/components/ui";
 import { CustomerSidebar } from "./customer-sidebar";
 
 /**
@@ -22,6 +23,17 @@ export default function CustomerLayout({
 
       {/* min-w-0 stops a wide table from forcing the whole page to scroll. */}
       <div className="flex min-w-0 flex-1 flex-col">
+        {/*
+          Mobile-only strip. From `md` the rail is on screen and carries the
+          branding itself, so this would be a second header saying the same
+          thing -- but below it the rail is a drawer, and without this there
+          would be no way to open it.
+        */}
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface-sunken px-4 md:hidden">
+          <SidebarMenuButton className="-ms-2" />
+          <span className="text-sm font-bold text-fg">جی‌داش</span>
+        </header>
+
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>

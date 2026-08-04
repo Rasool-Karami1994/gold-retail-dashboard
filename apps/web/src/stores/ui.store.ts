@@ -21,6 +21,16 @@ interface UiState {
   setSidebarCollapsed: (collapsed: boolean) => void;
 
   /**
+   * The mobile drawer. Separate from `sidebarCollapsed` and NOT persisted:
+   * collapse is a durable preference about a rail that is always on screen,
+   * this is a transient "is the overlay open right now". Restoring an open
+   * drawer on the next page load would be a menu nobody asked for.
+   */
+  sidebarDrawerOpen: boolean;
+  openSidebarDrawer: () => void;
+  closeSidebarDrawer: () => void;
+
+  /**
    * A stack, not a single value, so a confirmation dialog can open on top of a
    * form without destroying it. The last entry is the one on top.
    */
@@ -38,6 +48,10 @@ export const useUiStore = create<UiState>()(
       toggleSidebar: () =>
         set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+
+      sidebarDrawerOpen: false,
+      openSidebarDrawer: () => set({ sidebarDrawerOpen: true }),
+      closeSidebarDrawer: () => set({ sidebarDrawerOpen: false }),
 
       modals: [],
       openModal: (id, payload) =>
@@ -81,6 +95,7 @@ export const useUiStore = create<UiState>()(
 /* ---- Selectors ----------------------------------------------------------- */
 
 export const useSidebarCollapsed = () => useUiStore((s) => s.sidebarCollapsed);
+export const useSidebarDrawerOpen = () => useUiStore((s) => s.sidebarDrawerOpen);
 
 /** True when `id` is anywhere in the stack. */
 export const useIsModalOpen = (id: string) =>

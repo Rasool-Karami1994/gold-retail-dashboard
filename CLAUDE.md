@@ -92,6 +92,10 @@ pnpm --filter api seed:admin
   check it before debugging the component.
 - **`tsx watch` doesn't reload if you started the API without `watch`.** An API
   change that "isn't taking effect" is usually this.
+- **`pnpm build` while `next dev` is running corrupts the dev server**, because
+  both write `apps/web/.next`. The symptom is the inert-page one above, and it
+  is easy to misread as a bug in whatever you just wrote. Stop the dev server
+  before building, or expect to clear `.next` afterwards.
 - **`MONGODB_URI` must say `127.0.0.1`, not `localhost`, on this machine.** The
   native `mongod` service here binds the IPv4 loopback only, and Node resolves
   `localhost` to `::1` first — so the API hangs at boot with no error and never
@@ -147,10 +151,16 @@ pnpm --filter api seed:admin
   in it and has to carry the retry. `ChartCard` takes `error`/`onRetry` for the
   same reason: without it, a failed query falls through to the empty state and
   claims there is no data.
-- **The sidebar is icons-only below `lg`, in CSS, not via `matchMedia`.** The
-  server cannot know the viewport, so a JS breakpoint renders expanded, hydrates,
-  then visibly snaps shut on every tablet load. Header/footer slots filled by
-  callers use `sidebarWideOnly()` so they hide on the same terms as the labels.
+- **The sidebar has three widths, all in CSS, never via `matchMedia`:** a
+  hamburger drawer below `md`, icons only `md`–`lg`, the stored preference at
+  `lg`+. The server cannot know the viewport, so a JS breakpoint renders one
+  layout, hydrates, then visibly snaps to another on every load. Header/footer
+  slots filled by callers use `sidebarWideOnly()` so they hide on the same terms
+  as the labels.
+- **`start-*` is the RIGHT edge in this app, `end-*` is the left.** RTL inverts
+  the logical properties, which is easy to get backwards on anything positioned
+  rather than laid out — the mobile drawer first shipped pinned to `end-0` and
+  slid in from the wrong side.
 - **User-facing strings are Persian.** Map API errors by HTTP status rather than
   forwarding `error.message`; the API answers in English.
 - **Send dates to the API with `toApiDate()`** (`lib/jalali.ts`), never
@@ -203,13 +213,6 @@ Never push unless asked.
   production. Deleting a file by hand breaks the link on a live record; the fix
   is `POST /api/admin/transactions/:id/invoice`, which re-renders and repoints
   `invoicePdfUrl` without re-texting the customer.
-- **The invoice browser is never relaunched after it dies.** `getBrowser()` in
-  `invoice.ts` memoises the launch promise and only clears it when the *launch*
-  fails — a browser that started fine and later crashed stays cached, and every
-  render from then on throws `ConnectionClosedError: Connection closed.` until
-  the API restarts. Hit during verification after a long-running dev process.
-  The fix is a liveness check before returning: if `!browser.connected`, drop
-  `browserPromise` and launch again.
 - **Recording a payment has no screen.** `POST /api/admin/transactions/:id/payments`
   exists and `addPayment()` keeps `status` honest, but the detail page only
   reads. That endpoint plus a form on `/admin/transactions/[id]` is the natural

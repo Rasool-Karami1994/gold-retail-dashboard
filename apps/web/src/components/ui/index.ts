@@ -23,6 +23,7 @@ export {
 export { Modal, type ModalProps } from "./modal";
 
 export { ErrorState, type ErrorStateProps } from "./error-state";
+export { SidebarMenuButton } from "./menu-button";
 export { RouteError } from "./route-error";
 export { PageHeader, type PageHeaderProps, type Breadcrumb } from "./page-header";
 export {

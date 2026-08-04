@@ -13,13 +13,17 @@ import { useUiStore } from "@/stores/ui.store";
  * and reloads. In RTL the rail sits on the right; `border-s` and `start-*`
  * resolve to the correct physical side without a direction check.
  *
- * BELOW `lg` THE RAIL IS ALWAYS ICONS-ONLY, whatever the stored preference says
- * -- a 16rem rail on a 768px tablet eats a fifth of the width that the tables
- * need. That is done in CSS rather than with a `matchMedia` hook on purpose:
- * the server cannot know the viewport, so a JS breakpoint would render expanded,
- * hydrate, and then visibly snap shut on every tablet load. Labels are always in
- * the DOM and hidden with classes, which is also why they stay available to a
- * screen reader.
+ * Three widths, all in CSS rather than a `matchMedia` hook -- the server cannot
+ * know the viewport, so a JS breakpoint would render one layout, hydrate, and
+ * visibly snap to another on every load:
+ *
+ *   < md    an off-canvas DRAWER behind a hamburger. A 4.5rem rail is a fifth
+ *           of a 375px phone, and the labels have to come back anyway.
+ *   md..lg  icons only, whatever the stored preference says.
+ *   lg+     the preference decides.
+ *
+ * Labels are always in the DOM and hidden with classes, which is also why they
+ * stay available to a screen reader on the icon rail.
  */
 
 export interface SidebarItem {
@@ -55,8 +59,9 @@ export interface SidebarProps {
   className?: string;
 }
 
-const RAIL = "w-[4.5rem]";
-/** Narrow until `lg`, then honour the preference. */
+/** Full width as a drawer on mobile; a narrow rail from `md`. */
+const RAIL = "w-64 md:w-[4.5rem]";
+/** Same, but the preference gets the width back at `lg`. */
 const EXPANDED = `${RAIL} lg:w-64`;
 
 /**
@@ -74,48 +79,124 @@ export function sidebarWideOnly(
   collapsed: boolean,
   display: "block" | "flex" = "block",
 ): string {
-  if (collapsed) return "hidden";
-  return display === "flex" ? "hidden lg:flex" : "hidden lg:block";
+  // Visible in the mobile drawer either way -- it is full width there, and a
+  // menu of unlabelled icons is not a menu.
+  if (collapsed) return display === "flex" ? "flex md:hidden" : "block md:hidden";
+  return display === "flex"
+    ? "flex md:hidden lg:flex"
+    : "block md:hidden lg:block";
 }
 
 export function Sidebar({ items, header, footer, className }: SidebarProps) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggle = useUiStore((s) => s.toggleSidebar);
+  const drawerOpen = useUiStore((s) => s.sidebarDrawerOpen);
+  const closeDrawer = useUiStore((s) => s.closeSidebarDrawer);
   const pathname = usePathname();
 
   const wideOnly = sidebarWideOnly(collapsed);
 
+  // Navigating is the point of the drawer, so following a link closes it.
+  // Keyed on pathname rather than an onClick per link, which would miss the
+  // back button and any navigation triggered from inside a page.
+  React.useEffect(() => {
+    closeDrawer();
+  }, [pathname, closeDrawer]);
+
+  // Escape closes it, matching every other overlay in the app.
+  React.useEffect(() => {
+    if (!drawerOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeDrawer();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [drawerOpen, closeDrawer]);
+
   return (
-    <aside
-      data-collapsed={collapsed || undefined}
-      className={cn(
-        "flex h-dvh shrink-0 flex-col border-s border-border bg-surface-sunken",
-        "transition-[width] duration-200 ease-out",
-        collapsed ? RAIL : EXPANDED,
-        className,
+    <>
+      {/*
+        Backdrop, mobile only. `inert`-like behaviour is not needed because the
+        drawer is a sibling overlay rather than a modal dialog, but the click
+        target has to cover the page or the only way out is the close button.
+      */}
+      {drawerOpen && (
+        <div
+          onClick={closeDrawer}
+          aria-hidden="true"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+        />
       )}
-    >
-      <div
+
+      <aside
+        data-collapsed={collapsed || undefined}
         className={cn(
-          "flex h-16 items-center gap-2 border-b border-border",
-          collapsed ? "justify-center px-0" : "justify-center px-0 lg:justify-start lg:px-4",
+          "flex h-dvh flex-col border-s border-border bg-surface-sunken",
+          // Mobile: off-canvas drawer pinned to the inline-START edge, which is
+          // the RIGHT one under `dir="rtl"` -- the same side the rail occupies
+          // in the flow. (`end-0` would be the left edge here, which is how this
+          // first went wrong.) `translate-x-full` then parks it off that side.
+          "fixed inset-y-0 start-0 z-50 transition-transform duration-200 ease-out",
+          // `invisible` matters as much as the transform: a translated element
+          // is still focusable and still read by a screen reader, so without it
+          // Tab would walk an off-screen menu.
+          drawerOpen ? "translate-x-0" : "invisible translate-x-full",
+          // md+: back in the flow, always on screen, width does the animating.
+          "md:visible md:static md:z-auto md:shrink-0 md:translate-x-0 md:transition-[width]",
+          collapsed ? RAIL : EXPANDED,
+          className,
         )}
       >
-        <div className={cn("min-w-0 flex-1", wideOnly)}>{header}</div>
-
-        <button
-          type="button"
-          onClick={toggle}
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? "باز کردن منو" : "بستن منو"}
+        <div
           className={cn(
-            "shrink-0 rounded-md p-2 text-fg-muted transition-colors",
-            "hover:bg-surface-raised hover:text-fg",
-            // Below lg the width is fixed, so the control would do nothing
-            // visible -- and a dead button is worse than no button.
-            "hidden lg:block",
+            "flex h-16 items-center gap-2 border-b border-border px-4",
+            collapsed
+              ? "md:justify-center md:px-0"
+              : "md:justify-center md:px-0 lg:justify-start lg:px-4",
           )}
         >
+          <div className={cn("min-w-0 flex-1", wideOnly)}>{header}</div>
+
+          {/* Closes the drawer. Mobile only -- from `md` the rail is part of
+              the layout and there is nothing to dismiss. */}
+          <button
+            type="button"
+            onClick={closeDrawer}
+            aria-label="بستن منو"
+            className={cn(
+              "shrink-0 rounded-md p-2 text-fg-muted transition-colors md:hidden",
+              "hover:bg-surface-raised hover:text-fg",
+            )}
+          >
+            <svg
+              className="size-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={!collapsed}
+            // Distinct from the drawer's "باز کردن منو" / "بستن منو": this one
+            // widens and narrows a rail that is already on screen. Two controls
+            // sharing a name is ambiguous to anyone navigating by label.
+            aria-label={collapsed ? "باز کردن نوار کناری" : "جمع کردن نوار کناری"}
+            className={cn(
+              "shrink-0 rounded-md p-2 text-fg-muted transition-colors",
+              "hover:bg-surface-raised hover:text-fg",
+              // Below lg the width is fixed, so the control would do nothing
+              // visible -- and a dead button is worse than no button.
+              "hidden lg:block",
+            )}
+          >
           <ChevronIcon
             className={cn(
               "size-4 transition-transform duration-200",
@@ -147,14 +228,15 @@ export function Sidebar({ items, header, footer, className }: SidebarProps) {
                 <Link
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  // Native tooltip carries the label when there's no room for it.
-                  title={collapsed ? item.label : undefined}
+                  // Native tooltip carries the label on the icon rail. Not on
+                  // mobile, where the label is right there next to the icon.
+                  title={item.label}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-md py-2.5",
+                    "group relative flex items-center gap-3 rounded-md px-3 py-2.5",
                     "text-sm transition-colors duration-150",
                     collapsed
-                      ? "justify-center px-0"
-                      : "justify-center px-0 lg:justify-start lg:px-3",
+                      ? "md:justify-center md:px-0"
+                      : "md:justify-center md:px-0 lg:justify-start lg:px-3",
                     active
                       ? "bg-primary-500/12 font-medium text-fg"
                       : "text-fg-secondary hover:bg-surface-raised hover:text-fg",
@@ -200,17 +282,18 @@ export function Sidebar({ items, header, footer, className }: SidebarProps) {
         </ul>
       </nav>
 
-      {footer && (
-        <div
-          className={cn(
-            "border-t border-border p-3",
-            collapsed ? "px-2" : "px-2 lg:px-3",
-          )}
-        >
-          {footer}
-        </div>
-      )}
-    </aside>
+        {footer && (
+          <div
+            className={cn(
+              "border-t border-border p-3",
+              collapsed ? "md:px-2" : "md:px-2 lg:px-3",
+            )}
+          >
+            {footer}
+          </div>
+        )}
+      </aside>
+    </>
   );
 }
 

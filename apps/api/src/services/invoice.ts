@@ -133,10 +133,32 @@ let browserPromise: Promise<Browser> | undefined;
  * Launching Chrome costs a second or more; doing it per invoice would dominate
  * the request. The promise (not the resolved browser) is memoised so that
  * concurrent first calls share a single launch instead of racing into several.
+ *
+ * A CACHED BROWSER CAN DIE WITHOUT THIS FUNCTION BEING TOLD. It is a child
+ * process: it can crash, be OOM-killed, or be reaped by a container runtime,
+ * and the promise memoised here goes on resolving to the corpse. Every later
+ * render then fails with `ConnectionClosedError: Connection closed.` for the
+ * life of the process -- invoices simply stop being produced until someone
+ * restarts the API.
+ *
+ * So liveness is checked on the way in, and `disconnected` clears the cache as
+ * soon as it happens. Both, deliberately: the event handles the common case
+ * promptly, and the check still covers anything that slips past it.
  */
 async function getBrowser(): Promise<Browser> {
+  const cached = browserPromise;
+
+  if (cached) {
+    const existing = await cached.catch(() => undefined);
+    if (existing?.connected) return existing;
+
+    // Dead or failed. Clear it -- but only if nothing has replaced it while we
+    // were awaiting, or we would discard a healthy relaunch.
+    if (browserPromise === cached) browserPromise = undefined;
+  }
+
   if (!browserPromise) {
-    browserPromise = puppeteer
+    const launch: Promise<Browser> = puppeteer
       .launch({
         executablePath: findChrome(),
         headless: true,
@@ -145,12 +167,21 @@ async function getBrowser(): Promise<Browser> {
         // untrusted input, so the sandbox is not load-bearing here.
         args: ["--no-sandbox", "--disable-dev-shm-usage"],
       })
+      .then((browser) => {
+        browser.once("disconnected", () => {
+          if (browserPromise === launch) browserPromise = undefined;
+        });
+        return browser;
+      })
       .catch((error) => {
         // Don't cache a failed launch, or every later call replays the failure.
-        browserPromise = undefined;
+        if (browserPromise === launch) browserPromise = undefined;
         throw error;
       });
+
+    browserPromise = launch;
   }
+
   return browserPromise;
 }
 

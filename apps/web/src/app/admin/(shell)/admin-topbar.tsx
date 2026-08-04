@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, toast } from "@/components/ui";
+import { Button, SidebarMenuButton, toast } from "@/components/ui";
 import { ROUTES } from "@/config/routes";
 import { ApiError } from "@/lib/api";
 import {
@@ -81,8 +81,10 @@ export function AdminTopBar() {
   const username = data?.admin.username;
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface-sunken px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface-sunken px-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
+        {/* On mobile the rail is a drawer, so this is the only way into it. */}
+        <SidebarMenuButton className="-ms-2" />
         <span
           aria-hidden="true"
           className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-raised text-sm font-medium text-fg-secondary"
