@@ -87,6 +87,33 @@ export function verifyLoginOtp(input: { mobile: string; code: string }) {
   });
 }
 
+export function logoutCustomer() {
+  return apiFetch<{ success: true }>("/api/customer/auth/logout", {
+    method: "POST",
+  });
+}
+
+export interface CustomerMe {
+  id: string;
+  firstName: string;
+  lastName: string;
+  mobile: string;
+  fullName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * The signed-in customer's own record. 401s when the cookie is missing, expired
+ * or belongs to a deleted account, which is how the shell learns the session is
+ * over between navigations.
+ */
+export function fetchCustomerMe() {
+  return apiFetch<CustomerMe>("/api/customer/me");
+}
+
+export const customerMeKey = ["customer", "me"] as const;
+
 /** Shapes the login response into the store's user. */
 export function toAuthUser(response: AdminLoginResponse): AuthUser {
   return {

@@ -168,6 +168,71 @@ export function regenerateInvoice(id: string) {
   );
 }
 
+/* ---- The signed-in customer's own transactions --------------------------- */
+
+/**
+ * A different endpoint, not a filtered version of the admin one.
+ *
+ * Scope comes from the session cookie on the server -- there is no customer id
+ * in the URL for anyone to substitute, and these filters narrow within that
+ * scope rather than choosing it. The row shape is the same, so the admin types
+ * above are reused rather than copied.
+ */
+export interface CustomerTransactionRow extends TransactionRow {
+  /** Null until the invoice PDF has rendered. */
+  invoicePdfUrl: string | null;
+}
+
+export interface CustomerTransactionFilters {
+  dateFrom?: Date;
+  dateTo?: Date;
+  /** Bounds on `totalAmount`, the gross value of the deal. */
+  minAmount?: number;
+  maxAmount?: number;
+}
+
+/** Request and query key are both built from this, so they cannot disagree. */
+export function customerTransactionQuery(
+  filters: CustomerTransactionFilters,
+): Record<string, string> {
+  const query: Record<string, string> = {};
+
+  if (filters.dateFrom) query.dateFrom = toApiDate(filters.dateFrom);
+  if (filters.dateTo) query.dateTo = toApiDate(filters.dateTo);
+  // Explicit undefined check: 0 is a legitimate bound and must survive.
+  if (filters.minAmount !== undefined) query.minAmount = String(filters.minAmount);
+  if (filters.maxAmount !== undefined) query.maxAmount = String(filters.maxAmount);
+
+  return query;
+}
+
+export function fetchMyTransactions(
+  filters: CustomerTransactionFilters,
+  { page, limit }: { page: number; limit: number },
+) {
+  const params = new URLSearchParams({
+    ...customerTransactionQuery(filters),
+    page: String(page),
+    limit: String(limit),
+  });
+
+  return apiFetch<Paginated<CustomerTransactionRow>>(
+    `/api/customer/transactions?${params.toString()}`,
+  );
+}
+
+/**
+ * One of the customer's own invoices.
+ *
+ * 404s for someone else's rather than 403 -- a 403 would confirm the id exists,
+ * which is an enumeration oracle over invoice numbers. See the service.
+ */
+export function fetchMyTransaction(id: string) {
+  return apiFetch<TransactionDetail>(
+    `/api/customer/transactions/${encodeURIComponent(id)}`,
+  );
+}
+
 /* ---- Query keys ---------------------------------------------------------- */
 
 export const transactionKeys = {
@@ -175,4 +240,22 @@ export const transactionKeys = {
   list: (filters: TransactionFilters, page: number, limit: number) =>
     ["transactions", "list", transactionQuery(filters), page, limit] as const,
   detail: (id: string) => ["transactions", "detail", id] as const,
+};
+
+/**
+ * Kept separate from `transactionKeys`. The two endpoints answer differently
+ * for the same id -- one is scoped to a session -- so sharing a cache entry
+ * would let an admin's copy of a transaction satisfy a customer's read.
+ */
+export const myTransactionKeys = {
+  all: ["my-transactions"] as const,
+  list: (filters: CustomerTransactionFilters, page: number, limit: number) =>
+    [
+      "my-transactions",
+      "list",
+      customerTransactionQuery(filters),
+      page,
+      limit,
+    ] as const,
+  detail: (id: string) => ["my-transactions", "detail", id] as const,
 };

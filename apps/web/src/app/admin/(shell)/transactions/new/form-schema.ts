@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { toLatinDigits } from "@/lib/mobile";
+import { toNumber } from "@/lib/numbers";
+
+/** Re-exported so this form's own modules keep one import path. */
+export { toNumber };
 
 /**
  * Validation for the new-transaction form.
@@ -13,29 +17,6 @@ import { toLatinDigits } from "@/lib/mobile";
  * separators, which matter here: the cashier's keyboard produces ۴۲۰۰۰۰۰ and
  * people paste "4,200,000".
  */
-
-/**
- * A field's raw value as a number, or NaN.
- *
- * NaN rather than 0 for an empty field: 0 is a value someone might mean, and
- * reporting "required" is not the same as accepting zero. Callers that want a
- * running total treat NaN as "nothing typed yet".
- */
-export function toNumber(value: unknown): number {
-  if (typeof value === "number") return value;
-
-  const text = toLatinDigits(String(value ?? ""))
-    // U+066B, the Persian decimal mark. This is not an edge case: Intl formats
-    // every weight in this app with it, so "۲٫۵" is exactly what a cashier
-    // reads off the screen and types back. Left alone it parses as NaN and the
-    // total silently shows zero.
-    .replace(/٫/g, ".")
-    // Latin comma, U+066C Persian thousands separator, spaces.
-    .replace(/[,٬\s]/g, "")
-    .trim();
-
-  return text === "" ? NaN : Number(text);
-}
 
 function numeric(inner: z.ZodNumber) {
   return z.preprocess(toNumber, inner);

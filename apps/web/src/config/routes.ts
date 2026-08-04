@@ -32,8 +32,12 @@ export const ROUTES = {
    * would be a button that always 403s.
    */
   customerLogin: "/",
-  /** Where a signed-in customer lands. */
-  customerHome: "/dashboard",
+  /**
+   * Where a signed-in customer lands. Their transaction list is the default
+   * view of the customer area, so sign-in goes straight to it rather than to a
+   * landing page that would only link onwards.
+   */
+  customerHome: "/customer/transactions",
 
   adminRoot: "/admin",
   adminLogin: "/admin/login",

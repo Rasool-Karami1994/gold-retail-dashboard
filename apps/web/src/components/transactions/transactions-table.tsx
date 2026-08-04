@@ -268,10 +268,17 @@ const DEFAULT_COLUMNS: TransactionColumnId[] = [
   "remainingAmount",
 ];
 
-export interface TransactionsTableProps {
-  data: TransactionTableRow[];
+export interface TransactionsTableProps<T extends TransactionTableRow> {
+  data: T[];
   /** Column ids, in display order. */
   columns?: TransactionColumnId[];
+  /**
+   * Appended after the selected ids, for columns this component has no business
+   * knowing about -- the customer area's own detail link and invoice download,
+   * which point at different routes and read fields off a wider row than the
+   * shared shape. Generic in `T` so those columns can see those fields.
+   */
+  extraColumns?: Column<T>[];
   page: number;
   onPageChange: (page: number) => void;
   pageSize: number;
@@ -282,9 +289,10 @@ export interface TransactionsTableProps {
   className?: string;
 }
 
-export function TransactionsTable({
+export function TransactionsTable<T extends TransactionTableRow>({
   data,
   columns = DEFAULT_COLUMNS,
+  extraColumns,
   page,
   onPageChange,
   pageSize,
@@ -293,10 +301,15 @@ export function TransactionsTable({
   emptyMessage = "معامله‌ای ثبت نشده است.",
   caption = "فهرست معاملات",
   className,
-}: TransactionsTableProps) {
+}: TransactionsTableProps<T>) {
   const selected = React.useMemo(
-    () => columns.map((id) => COLUMNS[id]),
-    [columns],
+    // A column that reads only the shared fields is safe on any row that
+    // extends them, which is why the widening here needs no runtime work.
+    () => [
+      ...columns.map((id) => COLUMNS[id] as Column<T>),
+      ...(extraColumns ?? []),
+    ],
+    [columns, extraColumns],
   );
 
   return (

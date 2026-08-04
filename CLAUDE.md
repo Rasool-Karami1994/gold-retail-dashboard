@@ -28,17 +28,32 @@ Built and verified against live Mongo:
   `/admin/transactions/new` (mobile lookup → deal → payments builder) and
   `/admin/transactions/[id]` (details, payments, invoice PDF).
 
-**The whole admin panel is now built** — no placeholder screens remain under
-`/admin`. On the customer side, **`/` is the sign-in page** (mobile → OTP →
-`/dashboard`); `/dashboard` is still a placeholder, and `_placeholder.tsx` is
-kept for whatever comes next there. `/login` is a redirect stub for the old URL.
+**Both apps are now built.** Admin: no placeholder screens remain under
+`/admin`. Customer: **`/` is sign-in** (mobile → OTP), and `/customer` is the
+signed-in area — a sidebar over `/customer/transactions` (the default view),
+`/customer/transactions/[id]` and `/customer/profile`. `/login` and `/dashboard`
+are redirect stubs for the old URLs. `_placeholder.tsx` is still there for
+whatever comes next.
+
+The customer screens are read-only by design: every write endpoint they might
+reach (regenerate invoice, add payment) is admin-only, so offering the button
+would be offering a 403.
 
 `components/transactions/transactions-table.tsx` is the shared transaction list
 — it owns every column's rendering and each screen passes the ids it wants.
 All three consumers go through it (the overview modal, the customer history and
 `/admin/transactions`); add a column there rather than a fourth copy.
 `lib/transactions-api.ts` is the matching client — `transactionQuery()` builds
-both the request and the query key, so the two cannot drift.
+both the request and the query key, so the two cannot drift. The customer's own
+list lives in the same file against `/api/customer/transactions`, with its own
+`myTransactionKeys`: the two endpoints answer differently for the same id, so
+sharing a cache entry would let an admin's copy satisfy a customer's read.
+
+**Anything route-specific stays out of the shared table.** It renders the
+columns both audiences share; a caller that needs its own links passes
+`extraColumns`, which is how the customer list gets a detail link into
+`/customer/...` and an invoice download without the component knowing either
+route exists.
 
 Branch `feat/transactions-stats-invoices` has an open PR (#1) against `main`.
 Local commits run ahead of the pushed branch — check `git status -sb` before
@@ -170,6 +185,13 @@ Never push unless asked.
   production. Deleting a file by hand breaks the link on a live record; the fix
   is `POST /api/admin/transactions/:id/invoice`, which re-renders and repoints
   `invoicePdfUrl` without re-texting the customer.
+- **The invoice browser is never relaunched after it dies.** `getBrowser()` in
+  `invoice.ts` memoises the launch promise and only clears it when the *launch*
+  fails — a browser that started fine and later crashed stays cached, and every
+  render from then on throws `ConnectionClosedError: Connection closed.` until
+  the API restarts. Hit during verification after a long-running dev process.
+  The fix is a liveness check before returning: if `!browser.connected`, drop
+  `browserPromise` and launch again.
 - **Recording a payment has no screen.** `POST /api/admin/transactions/:id/payments`
   exists and `addPayment()` keeps `status` honest, but the detail page only
   reads. That endpoint plus a form on `/admin/transactions/[id]` is the natural
