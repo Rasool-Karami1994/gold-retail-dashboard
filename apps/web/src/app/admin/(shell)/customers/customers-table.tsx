@@ -3,7 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { DataTable, Input, buttonStyles, type Column } from "@/components/ui";
+import {
+  DataTable,
+  ErrorState,
+  Input,
+  buttonStyles,
+  type Column,
+} from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { customerKeys, fetchCustomers, type CustomerRow } from "@/lib/customers-api";
 import { formatNumber, formatToman } from "@/lib/format";
@@ -140,7 +146,10 @@ export function CustomersTable() {
       </div>
 
       {isError ? (
-        <ErrorState onRetry={() => refetch()} />
+        <ErrorState
+          message="فهرست مشتریان بارگذاری نشد."
+          onRetry={() => refetch()}
+        />
       ) : (
         <div
           // Dim rather than blank while a new page or search is in flight --
@@ -171,28 +180,6 @@ export function CustomersTable() {
         </div>
       )}
     </section>
-  );
-}
-
-/**
- * A failed list is not a toast: there is nothing on screen behind it, so the
- * message has to sit where the table would have been and carry the retry.
- */
-function ErrorState({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div
-      role="alert"
-      className="flex flex-col items-center gap-3 rounded-lg border border-border bg-surface px-4 py-12 text-center"
-    >
-      <p className="text-sm text-fg-secondary">فهرست مشتریان بارگذاری نشد.</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className={buttonStyles({ variant: "secondary", size: "sm" })}
-      >
-        تلاش دوباره
-      </button>
-    </div>
   );
 }
 

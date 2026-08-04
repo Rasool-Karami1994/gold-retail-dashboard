@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { Modal, formatJalaliRange, type DateRange } from "@/components/ui";
+import { ErrorState, Modal, formatJalaliRange, type DateRange } from "@/components/ui";
 import { TransactionsTable } from "@/components/transactions/transactions-table";
 import { fetchTransactions, transactionKeys } from "@/lib/transactions-api";
 
@@ -42,7 +42,7 @@ export function TransactionsModal({
     [range.from, range.to],
   );
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: transactionKeys.list(filters, page, PAGE_SIZE),
     queryFn: () => fetchTransactions(filters, { page, limit: PAGE_SIZE }),
     // Don't fetch a list nobody is looking at.
@@ -60,19 +60,26 @@ export function TransactionsModal({
       title="جزئیات معاملات"
       description={formatJalaliRange(range.from, range.to)}
     >
-      <TransactionsTable
-        data={data?.items ?? []}
-        page={page}
-        onPageChange={setPage}
-        pageSize={PAGE_SIZE}
-        totalRows={data?.pagination.total ?? 0}
-        // `isFetching`, not `isPending`: the query is disabled while the modal
-        // is shut, which leaves it pending forever and renders a screenful of
-        // skeleton rows inside a closed dialog.
-        loading={isFetching}
-        emptyMessage="در این بازه معامله‌ای ثبت نشده است."
-        caption="فهرست معاملات بازه‌ی انتخاب‌شده"
-      />
+      {isError ? (
+        <ErrorState
+          message="فهرست معاملات بارگذاری نشد."
+          onRetry={() => refetch()}
+        />
+      ) : (
+        <TransactionsTable
+          data={data?.items ?? []}
+          page={page}
+          onPageChange={setPage}
+          pageSize={PAGE_SIZE}
+          totalRows={data?.pagination.total ?? 0}
+          // `isFetching`, not `isPending`: the query is disabled while the modal
+          // is shut, which leaves it pending forever and renders a screenful of
+          // skeleton rows inside a closed dialog.
+          loading={isFetching}
+          emptyMessage="در این بازه معامله‌ای ثبت نشده است."
+          caption="فهرست معاملات بازه‌ی انتخاب‌شده"
+        />
+      )}
     </Modal>
   );
 }

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { DataTable, Modal, type Column } from "@/components/ui";
+import { DataTable, ErrorState, Modal, type Column } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { formatGrams, formatToman } from "@/lib/format";
 import {
@@ -54,7 +54,7 @@ export function OpenTransactionsModal({
     setPage(1);
   }, [type]);
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: statsKeys.openTransactions(
       page,
       PAGE_SIZE,
@@ -191,21 +191,28 @@ export function OpenTransactionsModal({
           ))}
         </div>
 
-        <DataTable
-          data={data?.items ?? []}
-          columns={columns}
-          rowKey={(row) => row.id}
-          manual
-          page={page}
-          onPageChange={setPage}
-          pageSize={PAGE_SIZE}
-          totalRows={data?.pagination.total ?? 0}
-          // isFetching, not isPending: the query is disabled while the dialog is
-          // shut, which would leave it pending and render skeletons nobody sees.
-          loading={isFetching}
-          emptyMessage="حساب تسویه‌نشده‌ای وجود ندارد."
-          caption="فهرست معاملات تسویه‌نشده"
-        />
+        {isError ? (
+          <ErrorState
+            message="فهرست معاملات تسویه‌نشده بارگذاری نشد."
+            onRetry={() => refetch()}
+          />
+        ) : (
+          <DataTable
+            data={data?.items ?? []}
+            columns={columns}
+            rowKey={(row) => row.id}
+            manual
+            page={page}
+            onPageChange={setPage}
+            pageSize={PAGE_SIZE}
+            totalRows={data?.pagination.total ?? 0}
+            // isFetching, not isPending: the query is disabled while the dialog is
+            // shut, which would leave it pending and render skeletons nobody sees.
+            loading={isFetching}
+            emptyMessage="حساب تسویه‌نشده‌ای وجود ندارد."
+            caption="فهرست معاملات تسویه‌نشده"
+          />
+        )}
       </div>
     </Modal>
   );

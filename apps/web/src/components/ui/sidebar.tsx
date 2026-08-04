@@ -12,6 +12,14 @@ import { useUiStore } from "@/stores/ui.store";
  * Collapse state lives in the UI store (persisted), so it survives navigation
  * and reloads. In RTL the rail sits on the right; `border-s` and `start-*`
  * resolve to the correct physical side without a direction check.
+ *
+ * BELOW `lg` THE RAIL IS ALWAYS ICONS-ONLY, whatever the stored preference says
+ * -- a 16rem rail on a 768px tablet eats a fifth of the width that the tables
+ * need. That is done in CSS rather than with a `matchMedia` hook on purpose:
+ * the server cannot know the viewport, so a JS breakpoint would render expanded,
+ * hydrate, and then visibly snap shut on every tablet load. Labels are always in
+ * the DOM and hidden with classes, which is also why they stay available to a
+ * screen reader.
  */
 
 export interface SidebarItem {
@@ -47,13 +55,35 @@ export interface SidebarProps {
   className?: string;
 }
 
-const EXPANDED = "w-64";
-const COLLAPSED = "w-[4.5rem]";
+const RAIL = "w-[4.5rem]";
+/** Narrow until `lg`, then honour the preference. */
+const EXPANDED = `${RAIL} lg:w-64`;
+
+/**
+ * Classes for header/footer content that only belongs on a wide rail.
+ *
+ * Exported because those slots are filled by the caller -- admin-sidebar and
+ * customer-sidebar each render a user block that has to disappear on the same
+ * terms as the nav labels, or it overflows a 4.5rem rail on a tablet.
+ *
+ * Both branches are written out in full: Tailwind extracts class names by
+ * scanning source text, so a template literal like `lg:${display}` produces no
+ * CSS at all.
+ */
+export function sidebarWideOnly(
+  collapsed: boolean,
+  display: "block" | "flex" = "block",
+): string {
+  if (collapsed) return "hidden";
+  return display === "flex" ? "hidden lg:flex" : "hidden lg:block";
+}
 
 export function Sidebar({ items, header, footer, className }: SidebarProps) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggle = useUiStore((s) => s.toggleSidebar);
   const pathname = usePathname();
+
+  const wideOnly = sidebarWideOnly(collapsed);
 
   return (
     <aside
@@ -61,17 +91,17 @@ export function Sidebar({ items, header, footer, className }: SidebarProps) {
       className={cn(
         "flex h-dvh shrink-0 flex-col border-s border-border bg-surface-sunken",
         "transition-[width] duration-200 ease-out",
-        collapsed ? COLLAPSED : EXPANDED,
+        collapsed ? RAIL : EXPANDED,
         className,
       )}
     >
       <div
         className={cn(
-          "flex h-16 items-center gap-2 border-b border-border px-4",
-          collapsed && "justify-center px-0",
+          "flex h-16 items-center gap-2 border-b border-border",
+          collapsed ? "justify-center px-0" : "justify-center px-0 lg:justify-start lg:px-4",
         )}
       >
-        {!collapsed && <div className="min-w-0 flex-1">{header}</div>}
+        <div className={cn("min-w-0 flex-1", wideOnly)}>{header}</div>
 
         <button
           type="button"
@@ -81,6 +111,9 @@ export function Sidebar({ items, header, footer, className }: SidebarProps) {
           className={cn(
             "shrink-0 rounded-md p-2 text-fg-muted transition-colors",
             "hover:bg-surface-raised hover:text-fg",
+            // Below lg the width is fixed, so the control would do nothing
+            // visible -- and a dead button is worse than no button.
+            "hidden lg:block",
           )}
         >
           <ChevronIcon
@@ -117,9 +150,11 @@ export function Sidebar({ items, header, footer, className }: SidebarProps) {
                   // Native tooltip carries the label when there's no room for it.
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-md px-3 py-2.5",
+                    "group relative flex items-center gap-3 rounded-md py-2.5",
                     "text-sm transition-colors duration-150",
-                    collapsed && "justify-center px-0",
+                    collapsed
+                      ? "justify-center px-0"
+                      : "justify-center px-0 lg:justify-start lg:px-3",
                     active
                       ? "bg-primary-500/12 font-medium text-fg"
                       : "text-fg-secondary hover:bg-surface-raised hover:text-fg",
@@ -142,15 +177,21 @@ export function Sidebar({ items, header, footer, className }: SidebarProps) {
                     {item.icon}
                   </span>
 
-                  {!collapsed && (
-                    <>
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      {item.badge && (
-                        <span className="shrink-0 rounded-full bg-danger px-1.5 py-0.5 text-2xs font-medium text-white">
-                          {item.badge}
-                        </span>
+                  {/* Always rendered, hidden by class: a screen reader still
+                      announces the destination when the rail is narrow, where
+                      the icon alone would be the only accessible name. */}
+                  <span className={cn("min-w-0 flex-1 truncate", wideOnly)}>
+                    {item.label}
+                  </span>
+                  {item.badge && (
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full bg-danger px-1.5 py-0.5 text-2xs font-medium text-white",
+                        wideOnly,
                       )}
-                    </>
+                    >
+                      {item.badge}
+                    </span>
                   )}
                 </Link>
               </li>
@@ -160,7 +201,12 @@ export function Sidebar({ items, header, footer, className }: SidebarProps) {
       </nav>
 
       {footer && (
-        <div className={cn("border-t border-border p-3", collapsed && "px-2")}>
+        <div
+          className={cn(
+            "border-t border-border p-3",
+            collapsed ? "px-2" : "px-2 lg:px-3",
+          )}
+        >
           {footer}
         </div>
       )}

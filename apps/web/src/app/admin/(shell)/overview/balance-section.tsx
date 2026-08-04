@@ -89,6 +89,8 @@ export function BalanceSection({ unit }: { unit: "amount" | "grams" }) {
           loading={query.isPending}
           empty={empty}
           emptyMessage="بدهی تسویه‌نشده‌ای وجود ندارد."
+          error={query.isError}
+          onRetry={() => query.refetch()}
           height={120}
         >
           <SingleBar
@@ -110,6 +112,8 @@ export function BalanceSection({ unit }: { unit: "amount" | "grams" }) {
           loading={query.isPending}
           empty={empty}
           emptyMessage="بدهی تسویه‌نشده‌ای وجود ندارد."
+          error={query.isError}
+          onRetry={() => query.refetch()}
           height={120}
         >
           <SingleBar

@@ -22,8 +22,15 @@ export {
 } from "./card";
 export { Modal, type ModalProps } from "./modal";
 
+export { ErrorState, type ErrorStateProps } from "./error-state";
+export { RouteError } from "./route-error";
 export { PageHeader, type PageHeaderProps, type Breadcrumb } from "./page-header";
-export { Sidebar, type SidebarProps, type SidebarItem } from "./sidebar";
+export {
+  Sidebar,
+  sidebarWideOnly,
+  type SidebarProps,
+  type SidebarItem,
+} from "./sidebar";
 export {
   DataTable,
   type DataTableProps,

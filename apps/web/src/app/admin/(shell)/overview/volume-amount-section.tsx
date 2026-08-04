@@ -96,6 +96,8 @@ export function VolumeAmountSection() {
           onRangeChange={setRange}
           loading={volume.isPending}
           empty={volumeEmpty}
+          error={volume.isError}
+          onRetry={() => volume.refetch()}
           height={260}
         >
           <ComparisonBars data={volumeData} format={formatGrams} unit="گرم" />
@@ -108,6 +110,8 @@ export function VolumeAmountSection() {
           onRangeChange={setRange}
           loading={amount.isPending}
           empty={amountEmpty}
+          error={amount.isError}
+          onRetry={() => amount.refetch()}
           height={260}
         >
           <ComparisonBars

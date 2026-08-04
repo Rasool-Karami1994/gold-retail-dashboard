@@ -5,6 +5,7 @@ import { ResponsiveContainer } from "recharts";
 import { cn } from "@/lib/cn";
 import { Card } from "./card";
 import { DateRangeFilter } from "./date-range-filter";
+import { ErrorState } from "./error-state";
 import type { DateRange, DateRangePreset } from "@/lib/jalali";
 
 /**
@@ -40,6 +41,14 @@ export interface ChartCardProps {
   /** Shown instead of the chart when there's nothing to plot. */
   empty?: boolean;
   emptyMessage?: React.ReactNode;
+  /**
+   * Takes precedence over `loading` and `empty`. A failed query has no data, so
+   * without this the card would render its empty state and tell the user there
+   * is nothing to show -- which is a different and wrong claim.
+   */
+  error?: boolean;
+  errorMessage?: React.ReactNode;
+  onRetry?: () => void;
 
   children: React.ReactElement;
   className?: string;
@@ -57,6 +66,9 @@ export function ChartCard({
   loading = false,
   empty = false,
   emptyMessage = "داده‌ای برای نمایش وجود ندارد.",
+  error = false,
+  errorMessage = "بارگذاری نمودار انجام نشد.",
+  onRetry,
   children,
   className,
 }: ChartCardProps) {
@@ -91,7 +103,14 @@ export function ChartCard({
       </div>
 
       <div className="px-3 py-5" style={{ height }}>
-        {loading ? (
+        {error ? (
+          <ErrorState
+            variant="bare"
+            message={errorMessage}
+            onRetry={onRetry}
+            className="size-full py-0"
+          />
+        ) : loading ? (
           <div className="size-full animate-pulse rounded-md bg-surface-raised" />
         ) : empty ? (
           <div className="flex size-full items-center justify-center text-sm text-fg-muted">

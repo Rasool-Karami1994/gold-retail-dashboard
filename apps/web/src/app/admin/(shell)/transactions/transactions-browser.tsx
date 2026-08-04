@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Button, buttonStyles, formatJalaliRange } from "@/components/ui";
+import { Button, ErrorState, formatJalaliRange } from "@/components/ui";
 import {
   TransactionsTable,
   type TransactionColumnId,
@@ -157,19 +157,7 @@ export function TransactionsBrowser() {
       </div>
 
       {isError ? (
-        <div
-          role="alert"
-          className="flex flex-col items-center gap-3 rounded-lg border border-border bg-surface px-4 py-12 text-center"
-        >
-          <p className="text-sm text-fg-secondary">فهرست معاملات بارگذاری نشد.</p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className={buttonStyles({ variant: "secondary", size: "sm" })}
-          >
-            تلاش دوباره
-          </button>
-        </div>
+        <ErrorState message="فهرست معاملات بارگذاری نشد." onRetry={() => refetch()} />
       ) : (
         <TransactionsTable
           data={data?.items ?? []}

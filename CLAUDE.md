@@ -3,7 +3,7 @@
 Gold-shop ledger. pnpm workspace: `apps/web` (Next.js 15, App Router, Tailwind
 v4, React 19) and `apps/api` (Express 4, TypeScript ESM, Mongoose).
 Persian/RTL throughout. [README.md](README.md) documents every endpoint and the
-design tokens.
+design tokens; [DEPLOY.md](DEPLOY.md) covers running both apps in production.
 
 ## Design reference
 Original UI screenshots for style matching: /design-reference/
@@ -141,6 +141,16 @@ pnpm --filter api seed:admin
 - Web components use logical Tailwind utilities (`ps-*`, `end-*`), never
   left/right, and only semantic design tokens — no default palette classes like
   `bg-slate-900`.
+- **A failed READ gets `<ErrorState>` where the content would have been; a
+  failed WRITE gets a toast.** A toast is for something that happened beside
+  what you are looking at — if the region itself is empty, the message belongs
+  in it and has to carry the retry. `ChartCard` takes `error`/`onRetry` for the
+  same reason: without it, a failed query falls through to the empty state and
+  claims there is no data.
+- **The sidebar is icons-only below `lg`, in CSS, not via `matchMedia`.** The
+  server cannot know the viewport, so a JS breakpoint renders expanded, hydrates,
+  then visibly snaps shut on every tablet load. Header/footer slots filled by
+  callers use `sidebarWideOnly()` so they hide on the same terms as the labels.
 - **User-facing strings are Persian.** Map API errors by HTTP status rather than
   forwarding `error.message`; the API answers in English.
 - **Send dates to the API with `toApiDate()`** (`lib/jalali.ts`), never

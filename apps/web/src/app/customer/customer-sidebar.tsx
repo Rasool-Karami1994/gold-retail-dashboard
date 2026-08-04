@@ -3,9 +3,16 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Sidebar, toast, type SidebarItem } from "@/components/ui";
+import {
+  Button,
+  Sidebar,
+  sidebarWideOnly,
+  toast,
+  type SidebarItem,
+} from "@/components/ui";
 import { ROUTES } from "@/config/routes";
 import { ApiError } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import {
   customerMeKey,
   fetchCustomerMe,
@@ -13,6 +20,7 @@ import {
   toCustomerAuthUser,
 } from "@/lib/auth-api";
 import { useAuthStore, useCurrentUser, useDisplayName } from "@/stores/auth.store";
+import { useUiStore } from "@/stores/ui.store";
 import { CUSTOMER_PROFILE, CUSTOMER_TRANSACTIONS } from "./routes";
 
 /**
@@ -67,6 +75,9 @@ const items: SidebarItem[] = [
 export function CustomerSidebar() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  // Same persisted preference the admin rail uses; the footer below has to hide
+  // its user block on exactly the terms the nav labels do.
+  const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const setUser = useAuthStore((s) => s.setUser);
   const setAnonymous = useAuthStore((s) => s.setAnonymous);
   const reset = useAuthStore((s) => s.reset);
@@ -146,7 +157,9 @@ export function CustomerSidebar() {
               {displayName?.[0] ?? "‌"}
             </span>
 
-            <div className="flex min-w-0 flex-col">
+            {/* Hidden on the same terms as the nav labels -- below `lg` the
+                rail is 4.5rem wide and this block would overflow it. */}
+            <div className={cn("min-w-0 flex-col", sidebarWideOnly(collapsed, "flex"))}>
               {isPending ? (
                 <span className="h-4 w-24 animate-pulse rounded bg-surface-raised" />
               ) : (
@@ -164,6 +177,7 @@ export function CustomerSidebar() {
             variant="secondary"
             size="sm"
             fullWidth
+            aria-label="خروج"
             loading={logout.isPending}
             onClick={() => logout.mutate()}
             startIcon={
@@ -183,7 +197,9 @@ export function CustomerSidebar() {
               </svg>
             }
           >
-            خروج
+            {/* The icon carries the meaning on a narrow rail; `aria-label`
+                below keeps the button named for a screen reader either way. */}
+            <span className={sidebarWideOnly(collapsed)}>خروج</span>
           </Button>
         </div>
       }
