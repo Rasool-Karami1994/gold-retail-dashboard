@@ -35,9 +35,10 @@ signed-in area — a sidebar over `/customer/transactions` (the default view),
 are redirect stubs for the old URLs. `_placeholder.tsx` is still there for
 whatever comes next.
 
-The customer screens are read-only by design: every write endpoint they might
-reach (regenerate invoice, add payment) is admin-only, so offering the button
-would be offering a 403.
+The customer's transaction screens are read-only by design: every write endpoint
+they might reach there (regenerate invoice, add payment) is admin-only, so
+offering the button would be offering a 403. `/customer/profile` is the one
+exception — `PATCH /api/customer/me` lets them fix their own name.
 
 `components/transactions/transactions-table.tsx` is the shared transaction list
 — it owns every column's rendering and each screen passes the ids it wants.
@@ -117,7 +118,14 @@ pnpm --filter api seed:admin
   date range. `/stats/debt-credit-*` are stock — running totals as of now, and
   deliberately reject a range, because a debt raised last year is still owed.
 - **A customer's `mobile` is immutable.** It is their login identity, so
-  changing it hands the account and its history to a different phone.
+  changing it hands the account and its history to a different phone. Both edit
+  schemas are `.strict()` about it, and `/customer/profile` renders it as a
+  locked field rather than omitting it — people look for their own number.
+- **A screen that changes the signed-in user writes the auth store, not just
+  the query cache.** The shells render the name from `useDisplayName()`, so the
+  store is what makes an edit show up immediately; seeding the query cache as
+  well is what stops the next `/me` read from reverting it. The profile form
+  does both.
 - **`populate()` is not a join.** You cannot filter or index on a populated
   field. Resolve ids first, then query — see `resolveCustomerIds` in
   `transaction.service.ts`.

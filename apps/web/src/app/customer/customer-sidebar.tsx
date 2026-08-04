@@ -6,7 +6,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Sidebar, toast, type SidebarItem } from "@/components/ui";
 import { ROUTES } from "@/config/routes";
 import { ApiError } from "@/lib/api";
-import { customerMeKey, fetchCustomerMe, logoutCustomer } from "@/lib/auth-api";
+import {
+  customerMeKey,
+  fetchCustomerMe,
+  logoutCustomer,
+  toCustomerAuthUser,
+} from "@/lib/auth-api";
+import { useAuthStore, useCurrentUser, useDisplayName } from "@/stores/auth.store";
 import { CUSTOMER_PROFILE, CUSTOMER_TRANSACTIONS } from "./routes";
 
 /**
@@ -61,6 +67,9 @@ const items: SidebarItem[] = [
 export function CustomerSidebar() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const setUser = useAuthStore((s) => s.setUser);
+  const setAnonymous = useAuthStore((s) => s.setAnonymous);
+  const reset = useAuthStore((s) => s.reset);
 
   const { data, isPending, isError } = useQuery({
     queryKey: customerMeKey,
@@ -71,15 +80,30 @@ export function CustomerSidebar() {
     staleTime: 5 * 60_000,
   });
 
+  // Mirror the answer into the store, which is what this footer actually
+  // renders. Going through the store rather than straight from `data` is what
+  // lets the profile form's save show up here immediately -- it writes the new
+  // name to the store, and this re-renders without waiting for a refetch.
+  useEffect(() => {
+    if (data) setUser(toCustomerAuthUser(data));
+    else if (isError) setAnonymous();
+  }, [data, isError, setUser, setAnonymous]);
+
   // A session that expired while the tab sat open: the middleware only runs on
   // navigation, so nothing else would notice until the next click.
   useEffect(() => {
     if (isError) router.replace(ROUTES.customerLogin);
   }, [isError, router]);
 
+  // `data` is the fallback for the render between the query resolving and the
+  // effect above running, so the name never blinks through a dash.
+  const displayName = useDisplayName() ?? data?.fullName ?? null;
+  const mobile = useCurrentUser()?.mobile ?? data?.mobile ?? "";
+
   const logout = useMutation({
     mutationFn: logoutCustomer,
     onSuccess: () => {
+      reset();
       // Drop every cached response. Without this, signing in as a different
       // customer on the same browser would paint the previous one's invoices
       // from cache before any refetch lands.
@@ -119,7 +143,7 @@ export function CustomerSidebar() {
               aria-hidden="true"
               className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-raised text-sm font-medium text-fg-secondary"
             >
-              {data?.firstName?.[0] ?? "‌"}
+              {displayName?.[0] ?? "‌"}
             </span>
 
             <div className="flex min-w-0 flex-col">
@@ -127,11 +151,11 @@ export function CustomerSidebar() {
                 <span className="h-4 w-24 animate-pulse rounded bg-surface-raised" />
               ) : (
                 <span className="truncate text-sm text-fg">
-                  {data?.fullName ?? "—"}
+                  {displayName ?? "—"}
                 </span>
               )}
               <span className="text-2xs text-fg-muted" dir="ltr">
-                {data?.mobile ?? ""}
+                {mobile}
               </span>
             </div>
           </div>

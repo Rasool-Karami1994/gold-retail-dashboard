@@ -114,6 +114,36 @@ export function fetchCustomerMe() {
 
 export const customerMeKey = ["customer", "me"] as const;
 
+/**
+ * Names only.
+ *
+ * The API's schema is `.strict()` and rejects any other key -- including
+ * `mobile`, which is immutable because it is the customer's login identity.
+ * Changing it would hand the account and its history to a different phone.
+ */
+export interface UpdateCustomerMeInput {
+  firstName: string;
+  lastName: string;
+}
+
+export function updateCustomerMe(input: UpdateCustomerMeInput) {
+  return apiFetch<CustomerMe>("/api/customer/me", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+/** Shapes the customer record into the store's user, as `toAuthUser` does for admins. */
+export function toCustomerAuthUser(me: CustomerMe): AuthUser {
+  return {
+    id: me.id,
+    role: "customer",
+    firstName: me.firstName,
+    lastName: me.lastName,
+    mobile: me.mobile,
+  };
+}
+
 /** Shapes the login response into the store's user. */
 export function toAuthUser(response: AdminLoginResponse): AuthUser {
   return {
