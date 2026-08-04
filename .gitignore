@@ -21,3 +21,7 @@ apps/api/uploads/
 # Transient: the commit message for the turn in progress, consumed by
 # .claude/scripts/auto-commit.sh.
 .claude/commit-msg
+
+# Page snapshots, console logs and screenshots the Playwright MCP browser drops
+# in the working directory while a screen is being verified.
+.playwright-mcp/

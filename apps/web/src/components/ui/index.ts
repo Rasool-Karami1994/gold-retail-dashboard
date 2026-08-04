@@ -1,5 +1,16 @@
 export { Button, type ButtonProps } from "./button";
+// From button-styles, not button: that module is `"use client"`, and a server
+// component cannot call a function exported from one. See button-styles.ts.
+export {
+  buttonStyles,
+  type ButtonStyleOptions,
+  type ButtonVariant,
+  type ButtonSize,
+} from "./button-styles";
 export { Input, type InputProps } from "./input";
+// A generic segmented code field, not a customer-registration detail: the
+// public sign-in and the staff add-customer wizard both enter a code with it.
+export { OtpInput, type OtpInputProps } from "./otp-input";
 export { Select, type SelectProps } from "./select";
 export {
   Card,
@@ -11,8 +22,16 @@ export {
 } from "./card";
 export { Modal, type ModalProps } from "./modal";
 
+export { ErrorState, type ErrorStateProps } from "./error-state";
+export { SidebarMenuButton } from "./menu-button";
+export { RouteError } from "./route-error";
 export { PageHeader, type PageHeaderProps, type Breadcrumb } from "./page-header";
-export { Sidebar, type SidebarProps, type SidebarItem } from "./sidebar";
+export {
+  Sidebar,
+  sidebarWideOnly,
+  type SidebarProps,
+  type SidebarItem,
+} from "./sidebar";
 export {
   DataTable,
   type DataTableProps,

@@ -107,6 +107,26 @@ export function rangeFromPicker(from: DateObject, to: DateObject): DateRange {
   };
 }
 
+/**
+ * A `Date` as the plain `YYYY-MM-DD` the API's range params expect.
+ *
+ * Built from the LOCAL calendar fields, not `toISOString()`. The ranges above
+ * are local-midnight to local-end-of-day, and `toISOString` reports those in
+ * UTC -- so anywhere east of Greenwich, local midnight is still the previous
+ * day in UTC and the range silently started a day early. In Tehran (+03:30)
+ * "امروز" meant "since 20:30 yesterday", and "این ماه" pulled in the last day
+ * of the month before.
+ *
+ * The API widens a bare date to the whole day, so no time component is wanted
+ * here -- only the right calendar day.
+ */
+export function toApiDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /** e.g. ۱۴۰۵/۰۵/۱۰ */
 export function formatJalali(date: Date, format = "YYYY/MM/DD"): string {
   return new DateObject({

@@ -1,6 +1,7 @@
 "use client";
 
-import { Sidebar, type SidebarItem } from "@/components/ui";
+import { Sidebar, sidebarWideOnly, type SidebarItem } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { useDisplayName } from "@/stores/auth.store";
 import { useUiStore } from "@/stores/ui.store";
 
@@ -90,16 +91,16 @@ export function AdminSidebar() {
           >
             {displayName?.[0]?.toUpperCase() ?? "‌"}
           </span>
-          {!collapsed && (
-            <div className="flex min-w-0 flex-col">
-              {displayName ? (
-                <span className="truncate text-sm text-fg">{displayName}</span>
-              ) : (
-                <span className="h-4 w-20 animate-pulse rounded bg-surface-raised" />
-              )}
-              <span className="text-2xs text-fg-muted">مدیر</span>
-            </div>
-          )}
+          {/* Hidden on the same terms as the nav labels -- below `lg` the rail
+              is 4.5rem wide and this block would overflow it. */}
+          <div className={cn("min-w-0 flex-col", sidebarWideOnly(collapsed, "flex"))}>
+            {displayName ? (
+              <span className="truncate text-sm text-fg">{displayName}</span>
+            ) : (
+              <span className="h-4 w-20 animate-pulse rounded bg-surface-raised" />
+            )}
+            <span className="text-2xs text-fg-muted">مدیر</span>
+          </div>
         </div>
       }
     />

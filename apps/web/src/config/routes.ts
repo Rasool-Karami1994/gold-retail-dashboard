@@ -23,10 +23,21 @@ export const COOKIE_NAMES = {
 export type Role = keyof typeof COOKIE_NAMES;
 
 export const ROUTES = {
-  /** Customer login + registration. */
-  customerLogin: "/login",
-  /** Where a signed-in customer lands. */
-  customerHome: "/dashboard",
+  /**
+   * Customer sign-in, and the site's front door.
+   *
+   * There is no separate landing page because there is nothing to land on: a
+   * customer either signs in or has no business here. Registration is not on it
+   * either -- 'register' codes are admin-only at the API, so a self-service form
+   * would be a button that always 403s.
+   */
+  customerLogin: "/",
+  /**
+   * Where a signed-in customer lands. Their transaction list is the default
+   * view of the customer area, so sign-in goes straight to it rather than to a
+   * landing page that would only link onwards.
+   */
+  customerHome: "/customer/transactions",
 
   adminRoot: "/admin",
   adminLogin: "/admin/login",
@@ -34,10 +45,21 @@ export const ROUTES = {
   adminHome: "/admin/overview",
 } as const;
 
-/** Reachable without any session. Everything else needs one. */
+/**
+ * Reachable without any session. Everything else needs one.
+ *
+ * `customerLogin` is "/", which `isPublicPath` matches only exactly -- the
+ * prefix arm below would need a path to begin "//" to match, and none does. The
+ * middleware handles the root before consulting this anyway; it is listed for
+ * the sake of this list meaning what it says.
+ */
 export const PUBLIC_PATHS: readonly string[] = [
   ROUTES.customerLogin,
   ROUTES.adminLogin,
+  // Where customer sign-in used to live; the page there only redirects to the
+  // root. Public so an old link resolves in one hop rather than bouncing
+  // through `/?next=/login`.
+  "/login",
 ];
 
 /**

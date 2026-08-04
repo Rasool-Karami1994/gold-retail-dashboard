@@ -3,7 +3,11 @@
 Gold-shop ledger. pnpm workspace: `apps/web` (Next.js 15, App Router, Tailwind
 v4, React 19) and `apps/api` (Express 4, TypeScript ESM, Mongoose).
 Persian/RTL throughout. [README.md](README.md) documents every endpoint and the
-design tokens.
+design tokens; [DEPLOY.md](DEPLOY.md) covers running both apps in production.
+
+## Design reference
+Original UI screenshots for style matching: /design-reference/
+Consult when building new components to stay visually consistent.
 
 ## Where the project is
 
@@ -16,11 +20,41 @@ Built and verified against live Mongo:
 - **Web** — design tokens + base UI kit (Button, Input, Select, Card, Modal,
   DataTable, DateRangeFilter, ChartCard, Sidebar, PageHeader, Toast); Zustand
   stores; TanStack Query; RTL middleware guard; admin login; admin shell
-  (sidebar + top bar + logout); `/admin/overview` sections 1–3.
+  (sidebar + top bar + logout); `/admin/overview` sections 1–3;
+  `/admin/customers` (debounced server-side search + aggregates table),
+  `/admin/customers/new` (the two-step OTP registration wizard),
+  `/admin/customers/[id]` (profile + lifetime totals + paginated history),
+  `/admin/transactions` (URL-driven filters + filter modal),
+  `/admin/transactions/new` (mobile lookup → deal → payments builder) and
+  `/admin/transactions/[id]` (details, payments, invoice PDF).
 
-Not built yet: `/admin/customers`, `/admin/transactions`,
-`/admin/transactions/new` are **placeholder screens** naming the endpoint each
-will consume. The customer-facing app is `/login` + a placeholder `/dashboard`.
+**Both apps are now built.** Admin: no placeholder screens remain under
+`/admin`. Customer: **`/` is sign-in** (mobile → OTP), and `/customer` is the
+signed-in area — a sidebar over `/customer/transactions` (the default view),
+`/customer/transactions/[id]` and `/customer/profile`. `/login` and `/dashboard`
+are redirect stubs for the old URLs. `_placeholder.tsx` is still there for
+whatever comes next.
+
+The customer's transaction screens are read-only by design: every write endpoint
+they might reach there (regenerate invoice, add payment) is admin-only, so
+offering the button would be offering a 403. `/customer/profile` is the one
+exception — `PATCH /api/customer/me` lets them fix their own name.
+
+`components/transactions/transactions-table.tsx` is the shared transaction list
+— it owns every column's rendering and each screen passes the ids it wants.
+All three consumers go through it (the overview modal, the customer history and
+`/admin/transactions`); add a column there rather than a fourth copy.
+`lib/transactions-api.ts` is the matching client — `transactionQuery()` builds
+both the request and the query key, so the two cannot drift. The customer's own
+list lives in the same file against `/api/customer/transactions`, with its own
+`myTransactionKeys`: the two endpoints answer differently for the same id, so
+sharing a cache entry would let an admin's copy satisfy a customer's read.
+
+**Anything route-specific stays out of the shared table.** It renders the
+columns both audiences share; a caller that needs its own links passes
+`extraColumns`, which is how the customer list gets a detail link into
+`/customer/...` and an invoice download without the component knowing either
+route exists.
 
 Branch `feat/transactions-stats-invoices` has an open PR (#1) against `main`.
 Local commits run ahead of the pushed branch — check `git status -sb` before
@@ -58,6 +92,16 @@ pnpm --filter api seed:admin
   check it before debugging the component.
 - **`tsx watch` doesn't reload if you started the API without `watch`.** An API
   change that "isn't taking effect" is usually this.
+- **`pnpm build` while `next dev` is running corrupts the dev server**, because
+  both write `apps/web/.next`. The symptom is the inert-page one above, and it
+  is easy to misread as a bug in whatever you just wrote. Stop the dev server
+  before building, or expect to clear `.next` afterwards.
+- **`MONGODB_URI` must say `127.0.0.1`, not `localhost`, on this machine.** The
+  native `mongod` service here binds the IPv4 loopback only, and Node resolves
+  `localhost` to `::1` first — so the API hangs at boot with no error and never
+  binds its port, which reads exactly like a dead dev server. `apps/api/.env` is
+  set to `127.0.0.1`; `.env.example` keeps `localhost` because the
+  docker-compose Mongo (`pnpm db:up`) binds both. Don't "fix" the example.
 - **Verification is real HTTP against local Mongo**, not isolated unit tests.
   Scratch scripts go in the session scratchpad, never the repo. Seed data,
   assert, then delete what you seeded — the dev database should be left as you
@@ -78,7 +122,14 @@ pnpm --filter api seed:admin
   date range. `/stats/debt-credit-*` are stock — running totals as of now, and
   deliberately reject a range, because a debt raised last year is still owed.
 - **A customer's `mobile` is immutable.** It is their login identity, so
-  changing it hands the account and its history to a different phone.
+  changing it hands the account and its history to a different phone. Both edit
+  schemas are `.strict()` about it, and `/customer/profile` renders it as a
+  locked field rather than omitting it — people look for their own number.
+- **A screen that changes the signed-in user writes the auth store, not just
+  the query cache.** The shells render the name from `useDisplayName()`, so the
+  store is what makes an edit show up immediately; seeding the query cache as
+  well is what stops the next `/me` read from reverting it. The profile form
+  does both.
 - **`populate()` is not a join.** You cannot filter or index on a populated
   field. Resolve ids first, then query — see `resolveCustomerIds` in
   `transaction.service.ts`.
@@ -94,8 +145,52 @@ pnpm --filter api seed:admin
 - Web components use logical Tailwind utilities (`ps-*`, `end-*`), never
   left/right, and only semantic design tokens — no default palette classes like
   `bg-slate-900`.
+- **A failed READ gets `<ErrorState>` where the content would have been; a
+  failed WRITE gets a toast.** A toast is for something that happened beside
+  what you are looking at — if the region itself is empty, the message belongs
+  in it and has to carry the retry. `ChartCard` takes `error`/`onRetry` for the
+  same reason: without it, a failed query falls through to the empty state and
+  claims there is no data.
+- **The sidebar has three widths, all in CSS, never via `matchMedia`:** a
+  hamburger drawer below `md`, icons only `md`–`lg`, the stored preference at
+  `lg`+. The server cannot know the viewport, so a JS breakpoint renders one
+  layout, hydrates, then visibly snaps to another on every load. Header/footer
+  slots filled by callers use `sidebarWideOnly()` so they hide on the same terms
+  as the labels.
+- **`start-*` is the RIGHT edge in this app, `end-*` is the left.** RTL inverts
+  the logical properties, which is easy to get backwards on anything positioned
+  rather than laid out — the mobile drawer first shipped pinned to `end-0` and
+  slid in from the wrong side.
 - **User-facing strings are Persian.** Map API errors by HTTP status rather than
   forwarding `error.message`; the API answers in English.
+- **Send dates to the API with `toApiDate()`** (`lib/jalali.ts`), never
+  `toISOString().slice(0,10)`. Ranges are local-midnight boundaries, and
+  `toISOString` reports them in UTC — east of Greenwich that is still the
+  previous day, so every range silently started 24 hours early.
+- **A server component cannot call anything exported from a `"use client"`
+  module.** That is why `buttonStyles` lives in `ui/button-styles.ts` rather than
+  beside `Button`. Anything a server page needs — class builders, formatters,
+  constants — belongs in a module without the directive.
+- **Customers cannot register themselves, and the UI has to say so.** `register`
+  codes are admin-only at the API, so a self-service sign-up would be a button
+  that always 403s. `/` states it up front, and an unknown mobile ends the flow
+  with "visit the shop" rather than showing a code box for an SMS that a 404
+  means was never sent.
+- **Registering a customer is three calls, in order**: request-otp → verify-otp
+  → `POST /api/admin/customers`, all with `purpose: 'register'`. A verified code
+  is spent, so a retry after a failed *create* must not verify again — see the
+  `verified` ref in `components/customers/new-customer-wizard.tsx`. That wizard
+  is shared: `/admin/customers/new` renders it in a card, and the new-transaction
+  form opens it in a modal when a mobile matches no customer.
+- **Numbers typed into a form go through `toNumber()`** (the new-transaction
+  `form-schema.ts`), never `Number(value)`. A Persian keyboard produces `۲٫۵`,
+  and `Intl` prints every weight in this app with `٫` (U+066B) and every amount
+  with `٬` (U+066C) — so what the screen shows is exactly what gets typed back.
+  Raw `Number()` returns NaN for all of it.
+- **A `<select>` bound to a zod enum needs `""` preprocessed to `undefined`.**
+  An untouched select holds `""`, which is not an enum member, so the user sees
+  "Invalid enum value" instead of "choose one" — and the resolver's input type
+  stops matching what react-hook-form holds. `requiredEnum()` does both.
 
 ## Commits
 
@@ -115,10 +210,22 @@ Never push unless asked.
 - **No retention policy on `apps/api/uploads/`.** Every invoice render writes a
   new file and regenerating keeps the old one so already-sent SMS links keep
   working. Gitignored, but it grows without bound — needs a cleanup job before
-  production.
+  production. Deleting a file by hand breaks the link on a live record; the fix
+  is `POST /api/admin/transactions/:id/invoice`, which re-renders and repoints
+  `invoicePdfUrl` without re-texting the customer.
+- **Recording a payment has no screen.** `POST /api/admin/transactions/:id/payments`
+  exists and `addPayment()` keeps `status` honest, but the detail page only
+  reads. That endpoint plus a form on `/admin/transactions/[id]` is the natural
+  next step — and remember to re-render the invoice afterwards, since the
+  printed one still shows the old balance.
 - **Inconsistent range params.** `/stats/*` takes `from`/`to`;
   `/admin/transactions` takes `dateFrom`/`dateTo`. Both were specified that way.
-  `lib/stats-api.ts` hides the difference from components. Worth unifying.
+  `lib/stats-api.ts` and `lib/transactions-api.ts` hide the difference from
+  components. Worth unifying.
+- **`/admin/transactions` filters on name, mobile, invoice number and date
+  only.** The endpoint also accepts `status` and `type`, and the table already
+  shows both as badges — wiring them into the filter modal is a small addition
+  to `TransactionFilters` and the form.
 - **Shop details on the invoice are a placeholder** (`SHOP_INFO` in
   `invoice-template.ts`).
 - **Kavenegar credentials are only in `apps/api/.env.example`**, not the web
@@ -129,3 +236,9 @@ Never push unless asked.
   a grouped-by-day variant of those endpoints.
 - **The `courses` resource is leftover scaffolding** from the initial setup and
   is unrelated to the gold-shop domain. Safe to delete.
+- **A customer's net balance is not on the detail screen**, because
+  `GET /api/admin/customers/:id` doesn't return one — its `totals` are count,
+  purchased and sold, all gross. It cannot be summed from the transactions in
+  the response either: that is one page of history, and the two directions have
+  to be netted with the sign applied. `netBalanceForCustomer()` already exists
+  in `transaction.model.ts`; exposing it in that endpoint's `totals` is the fix.
