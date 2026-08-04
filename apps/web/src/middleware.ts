@@ -11,13 +11,13 @@ import { readSession } from "@/lib/session";
 /**
  * Route guard for both audiences.
  *
- *   /                 signed out          -> /login
+ *   /                 signed out          -> the customer sign-in form
  *                     customer            -> /dashboard
  *                     admin               -> /admin/overview
  *   /admin            signed out          -> /admin/login
  *                     admin               -> /admin/overview
  *   /admin/*          not an admin        -> /admin/login
- *   everything else   not a customer      -> /login
+ *   everything else   not a customer      -> /
  *
  * A signed-in user who lands on a login page is bounced to their own home, so
  * the back button doesn't strand them on a form they don't need.
@@ -55,7 +55,10 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/") {
     if (admin) return redirect(ROUTES.adminHome);
     if (customer) return redirect(ROUTES.customerHome);
-    return redirect(ROUTES.customerLogin);
+    // Signed out: this IS the sign-in page, so render it. Anyone already signed
+    // in is bounced above, so the back button cannot strand them on a form they
+    // no longer need.
+    return NextResponse.next();
   }
 
   /* ---- Admin area ------------------------------------------------------ */
@@ -76,9 +79,8 @@ export async function middleware(request: NextRequest) {
 
   /* ---- Customer area --------------------------------------------------- */
 
-  if (pathname === ROUTES.customerLogin) {
-    return customer ? redirect(ROUTES.customerHome) : NextResponse.next();
-  }
+  // No branch for `customerLogin` here: it is "/", which the root block above
+  // already answered.
 
   if (isPublicPath(pathname)) {
     return NextResponse.next();

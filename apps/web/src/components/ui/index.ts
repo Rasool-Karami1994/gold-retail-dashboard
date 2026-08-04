@@ -8,6 +8,9 @@ export {
   type ButtonSize,
 } from "./button-styles";
 export { Input, type InputProps } from "./input";
+// A generic segmented code field, not a customer-registration detail: the
+// public sign-in and the staff add-customer wizard both enter a code with it.
+export { OtpInput, type OtpInputProps } from "./otp-input";
 export { Select, type SelectProps } from "./select";
 export {
   Card,

@@ -42,6 +42,51 @@ export function fetchAdminMe() {
 /** Query key for the session lookup, shared so nothing invalidates a typo. */
 export const adminMeKey = ["admin", "me"] as const;
 
+/* ---- Customer sign-in ---------------------------------------------------- */
+
+export interface RequestLoginOtpResult {
+  /** Normalised by the API. Use THIS to verify, not the raw input. */
+  mobile: string;
+  purpose: "login";
+  expiresAt: string;
+  /** Seconds until the code dies, for the resend countdown. */
+  expiresInSeconds: number;
+}
+
+/**
+ * Texts a sign-in code.
+ *
+ * 404s when no customer owns the number. That is not an edge case to smooth
+ * over: customers are created at the counter, so an unknown number means the
+ * person has no account yet and the flow has to stop rather than ask for a code
+ * that was never sent.
+ */
+export function requestLoginOtp(mobile: string) {
+  return apiFetch<RequestLoginOtpResult>("/api/customer/auth/request-otp", {
+    method: "POST",
+    body: JSON.stringify({ mobile, purpose: "login" }),
+  });
+}
+
+export interface VerifyLoginOtpResult {
+  verified: true;
+  mobile: string;
+  purpose: "login";
+  customer: { id: string; firstName: string; lastName: string; mobile: string };
+}
+
+/**
+ * Establishes the customer session. Unlike the 'register' purpose, this one
+ * sets the customer cookie -- which is why the caller must refresh afterwards,
+ * so the middleware sees it on the next request.
+ */
+export function verifyLoginOtp(input: { mobile: string; code: string }) {
+  return apiFetch<VerifyLoginOtpResult>("/api/customer/auth/verify-otp", {
+    method: "POST",
+    body: JSON.stringify({ ...input, purpose: "login" }),
+  });
+}
+
 /** Shapes the login response into the store's user. */
 export function toAuthUser(response: AdminLoginResponse): AuthUser {
   return {

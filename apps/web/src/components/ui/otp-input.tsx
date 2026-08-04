@@ -29,6 +29,16 @@ import { toLatinDigits } from "@/lib/mobile";
  * Splicing keeps the value dense by construction, which in turn means focus can
  * always be derived from its length rather than tracked separately.
  */
+export interface OtpInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  length: number;
+  disabled?: boolean;
+  invalid?: boolean;
+  autoFocus?: boolean;
+  "aria-label"?: string;
+}
+
 export function OtpInput({
   value,
   onChange,
@@ -37,15 +47,7 @@ export function OtpInput({
   invalid,
   autoFocus,
   "aria-label": ariaLabel = "کد تأیید",
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  length: number;
-  disabled?: boolean;
-  invalid?: boolean;
-  autoFocus?: boolean;
-  "aria-label"?: string;
-}) {
+}: OtpInputProps) {
   const refs = React.useRef<(HTMLInputElement | null)[]>([]);
 
   const chars = React.useMemo(

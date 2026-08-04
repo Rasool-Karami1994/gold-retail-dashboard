@@ -29,8 +29,9 @@ Built and verified against live Mongo:
   `/admin/transactions/[id]` (details, payments, invoice PDF).
 
 **The whole admin panel is now built** — no placeholder screens remain under
-`/admin`. The customer-facing app is still `/login` + a placeholder
-`/dashboard`, and `_placeholder.tsx` is kept for whatever comes next there.
+`/admin`. On the customer side, **`/` is the sign-in page** (mobile → OTP →
+`/dashboard`); `/dashboard` is still a placeholder, and `_placeholder.tsx` is
+kept for whatever comes next there. `/login` is a redirect stub for the old URL.
 
 `components/transactions/transactions-table.tsx` is the shared transaction list
 — it owns every column's rendering and each screen passes the ids it wants.
@@ -127,6 +128,11 @@ pnpm --filter api seed:admin
   module.** That is why `buttonStyles` lives in `ui/button-styles.ts` rather than
   beside `Button`. Anything a server page needs — class builders, formatters,
   constants — belongs in a module without the directive.
+- **Customers cannot register themselves, and the UI has to say so.** `register`
+  codes are admin-only at the API, so a self-service sign-up would be a button
+  that always 403s. `/` states it up front, and an unknown mobile ends the flow
+  with "visit the shop" rather than showing a code box for an SMS that a 404
+  means was never sent.
 - **Registering a customer is three calls, in order**: request-otp → verify-otp
   → `POST /api/admin/customers`, all with `purpose: 'register'`. A verified code
   is spent, so a retry after a failed *create* must not verify again — see the

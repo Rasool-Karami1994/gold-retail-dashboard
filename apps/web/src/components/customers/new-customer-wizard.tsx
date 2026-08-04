@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { Button, Input } from "@/components/ui";
+import { Button, Input, OtpInput } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import {
   createCustomer,
@@ -16,7 +16,6 @@ import {
 } from "@/lib/customers-api";
 import { formatNumber } from "@/lib/format";
 import { isValidMobile, normalizeMobile } from "@/lib/mobile";
-import { OtpInput } from "./otp-input";
 import { Stepper } from "./stepper";
 
 /**
