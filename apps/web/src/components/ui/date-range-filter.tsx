@@ -53,6 +53,57 @@ export function DateRangeFilter({
 
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const popoverRef = React.useRef<HTMLDivElement>(null);
+
+  /**
+   * Whether the calendar opens upward.
+   *
+   * It hangs below the chips by default, which is fine in a card header. Inside
+   * a modal the control can sit near the bottom of the screen, and a calendar
+   * ~340px tall would then run off the viewport -- unreachable in a dialog,
+   * because the top layer does not scroll with the page.
+   *
+   * Measured rather than assumed: a `useLayoutEffect` runs after the popover is
+   * in the DOM but before paint, so the flip never shows as a jump.
+   */
+  const [dropUp, setDropUp] = React.useState(false);
+
+  React.useLayoutEffect(() => {
+    if (!open) return;
+
+    const trigger = containerRef.current;
+    const popover = popoverRef.current;
+    if (!trigger || !popover) return;
+
+    const place = () => {
+      const rect = trigger.getBoundingClientRect();
+      const needed = popover.offsetHeight + 8;
+      const spaceBelow = window.innerHeight - rect.bottom;
+
+      // Only flip if going up is actually better -- on a short viewport neither
+      // side fits, and dropping down at least keeps the first week visible.
+      setDropUp(spaceBelow < needed && rect.top > spaceBelow);
+    };
+
+    place();
+
+    /**
+     * Re-measured on resize, not just once.
+     *
+     * The calendar has no height on the layout pass that first reveals it, so a
+     * single measurement decides "there is room below" against a popover of
+     * zero height and always drops down. It also changes height in normal use:
+     * a month spanning six weeks is a row taller than one spanning five.
+     */
+    const observer = new ResizeObserver(place);
+    observer.observe(popover);
+    window.addEventListener("resize", place);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", place);
+    };
+  }, [open]);
 
   const commit = (next: DateRange) => {
     if (value === undefined) setInternal(next);
@@ -89,7 +140,7 @@ export function DateRangeFilter({
   };
 
   const chipSize =
-    size === "sm" ? "h-7 px-2.5 text-2xs" : "h-8 px-3 text-xs";
+    size === "sm" ? "h-9 px-2.5 text-2xs" : "h-8 px-3 text-xs";
 
   return (
     <div
@@ -149,10 +200,16 @@ export function DateRangeFilter({
 
       {open && (
         <div
+          ref={popoverRef}
           role="dialog"
           aria-label="انتخاب بازه دلخواه"
           className={cn(
-            "absolute top-full z-40 mt-2 end-0",
+            "absolute z-40 end-0",
+            // Rendered INLINE, never portaled. Inside a <dialog> opened with
+            // showModal() the modal lives in the browser's top layer, and a
+            // popover portaled to document.body would land behind it with no
+            // z-index able to help. Staying in the subtree keeps it on top.
+            dropUp ? "bottom-full mb-2" : "top-full mt-2",
             "rounded-lg border border-border bg-surface-overlay p-2 shadow-lg",
           )}
         >

@@ -161,6 +161,14 @@ pnpm --filter api seed:admin
   the logical properties, which is easy to get backwards on anything positioned
   rather than laid out — the mobile drawer first shipped pinned to `end-0` and
   slid in from the wrong side.
+- **A popover opened inside `<Modal>` must render INLINE, never through a
+  portal.** The modal is a native `<dialog>` opened with `showModal()`, which
+  puts it in the browser's **top layer** — above every normal stacking context
+  regardless of z-index. A popover portaled to `document.body` lands *behind*
+  it and no z-index can rescue it. Staying in the dialog's subtree is what keeps
+  it on top. For the same reason neither the panel nor the dialog may clip:
+  `overflow-hidden` on the panel plus the UA's `overflow: auto` on `<dialog>`
+  are what made the date picker unreachable in the transactions filter.
 - **Never give the Recharts `<YAxis>` a numeric `width`.** It reserves that band
   on whichever side `orientation` puts it, and `rtlAxisProps.y` puts it on the
   RIGHT — so every pixel the labels don't use becomes a hole between them and

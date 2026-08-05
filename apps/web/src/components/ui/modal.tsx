@@ -81,9 +81,26 @@ export function Modal({
         sizes[size],
       )}
     >
+      {/*
+        NOT `overflow-hidden`.
+
+        It used to be, to keep the header and footer rules inside the rounded
+        corners -- but it also clipped anything a child opened beyond the panel:
+        the date picker's calendar, launched from the filter form, was cut off
+        195px short and the days below the fold could not be clicked. The panel
+        paints its own background and rounding, and the header/footer are
+        transparent rules, so nothing needs clipping here.
+
+        Do NOT "fix" a popover inside a modal by portaling it to document.body.
+        This is a native <dialog> opened with showModal(), which puts it in the
+        browser's TOP LAYER -- above every normal stacking context regardless of
+        z-index. A portaled popover would render *behind* the modal and no
+        z-index could raise it. Rendering inline, as the pickers do, is what
+        keeps them in the top layer too.
+      */}
       <div
         className={cn(
-          "w-full overflow-hidden rounded-xl border border-border",
+          "w-full rounded-xl border border-border",
           "bg-surface-overlay shadow-lg",
           className,
         )}
