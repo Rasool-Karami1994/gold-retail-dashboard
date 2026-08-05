@@ -143,7 +143,7 @@ export function CustomerSidebar() {
       items={items}
       header={
         <div className="flex flex-col">
-          <span className="text-sm font-bold text-fg">جی‌داش</span>
+          <span className="text-sm font-bold text-fg">گالری طلای روزبه</span>
           <span className="text-2xs text-fg-muted">حساب کاربری</span>
         </div>
       }

@@ -161,6 +161,13 @@ pnpm --filter api seed:admin
   the logical properties, which is easy to get backwards on anything positioned
   rather than laid out — the mobile drawer first shipped pinned to `end-0` and
   slid in from the wrong side.
+- **Never give the Recharts `<YAxis>` a numeric `width`.** It reserves that band
+  on whichever side `orientation` puts it, and `rtlAxisProps.y` puts it on the
+  RIGHT — so every pixel the labels don't use becomes a hole between them and
+  the edge of the card. Persian numerals are narrow (`۸` is ~7px), so a 72px
+  reservation was ~90% dead space. `width: "auto"` in `chart-theme.ts` sizes the
+  band to the widest tick; the same over-reservation in LTR just reads as
+  gutter on the left, which is why this only shows up here.
 - **User-facing strings are Persian.** Map API errors by HTTP status rather than
   forwarding `error.message`; the API answers in English.
 - **Send dates to the API with `toApiDate()`** (`lib/jalali.ts`), never
