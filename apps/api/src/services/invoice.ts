@@ -308,16 +308,31 @@ export async function generateInvoicePdf(
     // the transaction either way.
     await trySend(
       transaction.customer.mobile,
-      [
-        `فاکتور ${transaction.invoiceNumber}`,
-        `مبلغ: ${formatToman(transaction.totalAmount)} تومان`,
-        `مشاهده: ${url}`,
-      ].join("\n"),
+      buildInvoiceSmsText(transaction.invoiceNumber, transaction.totalAmount, url),
       `invoice ${transaction.invoiceNumber}`,
     );
   }
 
   return { filename, url, path };
+}
+
+/**
+ * The text a customer receives with their invoice link.
+ *
+ * Exported because the mock path shows the admin exactly what *would* have been
+ * sent, so they can pass it on by hand. Built in one place so the message the
+ * screen offers to copy cannot drift from the one the gateway delivers.
+ */
+export function buildInvoiceSmsText(
+  invoiceNumber: string,
+  totalAmount: number,
+  url: string,
+): string {
+  return [
+    `فاکتور ${invoiceNumber}`,
+    `مبلغ: ${formatToman(totalAmount)} تومان`,
+    `مشاهده: ${url}`,
+  ].join("\n");
 }
 
 async function renderPdf(html: string): Promise<Uint8Array> {

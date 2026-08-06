@@ -50,7 +50,7 @@ export interface ChartCardProps {
   errorMessage?: React.ReactNode;
   onRetry?: () => void;
 
-  children: React.ReactElement;
+  children?: React.ReactElement;
   className?: string;
 }
 
@@ -102,28 +102,30 @@ export function ChartCard({
         </div>
       </div>
 
-      <div className="px-3 py-5" style={{ height }}>
-        {error ? (
-          <ErrorState
-            variant="bare"
-            message={errorMessage}
-            onRetry={onRetry}
-            className="size-full py-0"
-          />
-        ) : loading ? (
-          <div className="size-full animate-pulse rounded-md bg-surface-raised" />
-        ) : empty ? (
-          <div className="flex size-full items-center justify-center text-sm text-fg-muted">
-            {emptyMessage}
-          </div>
-        ) : (
-          // ResponsiveContainer needs a parent with a resolved height, which the
-          // inline style above provides.
-          <ResponsiveContainer width="100%" height="100%">
-            {children}
-          </ResponsiveContainer>
-        )}
-      </div>
+      {children && (
+        <div className="px-3 py-5" style={{ height }}>
+          {error ? (
+            <ErrorState
+              variant="bare"
+              message={errorMessage}
+              onRetry={onRetry}
+              className="size-full py-0"
+            />
+          ) : loading ? (
+            <div className="size-full animate-pulse rounded-md bg-surface-raised" />
+          ) : empty ? (
+            <div className="flex size-full items-center justify-center text-sm text-fg-muted">
+              {emptyMessage}
+            </div>
+          ) : (
+            // ResponsiveContainer needs a parent with a resolved height, which the
+            // inline style above provides.
+            <ResponsiveContainer width="100%" height="100%">
+              {children}
+            </ResponsiveContainer>
+          )}
+        </div>
+      )}
     </Card>
   );
 }

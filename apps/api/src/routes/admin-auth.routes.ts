@@ -6,6 +6,7 @@ import { adminLoginLimiter } from "../middleware/rate-limit.js";
 import { requireRole } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error-handler.js";
 import { AdminModel } from "../models/admin.model.js";
+import { env } from "../config/env.js";
 
 /**
  * Mounted at /api/admin/auth.
@@ -39,6 +40,13 @@ adminAuthRouter.get(
     const admin = await AdminModel.findById(req.user?.id);
     if (!admin) throw new HttpError(401, "Authentication required");
 
-    res.json({ admin });
+    /**
+     * `smsMock` rides along so the shell can warn that no real SMS is going
+     * out. It is on this response rather than its own endpoint because the
+     * shell already calls /me on load -- a banner is not worth a second request
+     * on every page -- and admin-only because it describes how the deployment
+     * is configured, which is nobody else's business.
+     */
+    res.json({ admin, smsMock: env.smsIsMock });
   }),
 );

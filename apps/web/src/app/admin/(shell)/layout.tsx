@@ -1,5 +1,6 @@
 import { AdminSidebar } from "./admin-sidebar";
 import { AdminTopBar } from "./admin-topbar";
+import { SmsMockBanner } from "./sms-mock-banner";
 
 /**
  * Chrome for the signed-in admin area.
@@ -27,6 +28,9 @@ export default function AdminShellLayout({
 
       {/* min-w-0 stops a wide table from forcing the whole page to scroll. */}
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Above the top bar, not inside a page: it describes the whole
+            deployment, and it renders nothing when SMS is real. */}
+        <SmsMockBanner />
         <AdminTopBar />
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>

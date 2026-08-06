@@ -50,8 +50,21 @@ const schema = z.object({
    */
   REGISTRATION_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
 
-  /** Which SmsProvider implementation to load. See services/sms.ts. */
-  SMS_PROVIDER: z.enum(["console", "kavenegar"]).default("console"),
+  /**
+   * Which SmsProvider implementation to load. See services/sms.ts.
+   *
+   * `mock` delivers nothing and hands the message text back to the caller, so
+   * the app is fully usable without a gateway account. `console` is the older
+   * name for the same stub and still works. The default is decided below, from
+   * whether a Kavenegar key is present at all.
+   */
+  // Preprocessed so a blank `SMS_PROVIDER=` in .env means "unset" rather than
+  // failing the enum -- an empty value is how people disable a line, and a boot
+  // crash is a hostile answer to it.
+  SMS_PROVIDER: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.enum(["mock", "console", "kavenegar"]).optional(),
+  ),
 
   /**
    * Kavenegar credentials. Optional at the schema level because the console
@@ -119,8 +132,30 @@ if (!parsed.success) {
 
 const isProduction = parsed.data.NODE_ENV === "production";
 
+/**
+ * Which gateway to use, resolved rather than defaulted in the schema.
+ *
+ * An explicit SMS_PROVIDER always wins. Otherwise the presence of a Kavenegar
+ * key is the signal: a deployment that has credentials means to use them, and
+ * one that does not would only fail on the first login if we assumed otherwise.
+ *
+ * `console` is the previous name for the mock and is folded into it here, so
+ * existing .env files keep working.
+ */
+const smsProvider: "mock" | "kavenegar" =
+  parsed.data.SMS_PROVIDER === "kavenegar"
+    ? "kavenegar"
+    : parsed.data.SMS_PROVIDER === "mock" || parsed.data.SMS_PROVIDER === "console"
+      ? "mock"
+      : parsed.data.KAVENEGAR_API_KEY
+        ? "kavenegar"
+        : "mock";
+
 export const env = {
   ...parsed.data,
+  SMS_PROVIDER: smsProvider,
+  /** True when no real SMS leaves the process. Drives the dev-only fields. */
+  smsIsMock: smsProvider === "mock",
   isProduction,
   corsOrigins: parsed.data.CORS_ORIGIN.split(",")
     .map((origin) => origin.trim())

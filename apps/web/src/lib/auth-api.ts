@@ -13,6 +13,11 @@ export interface AdminLoginInput {
 
 export interface AdminLoginResponse {
   admin: { id: string; username: string; role: "admin" };
+  /**
+   * True when the API is not sending real SMS. Only `/me` sets it; the login
+   * response omits it, which is why it is optional.
+   */
+  smsMock?: boolean;
 }
 
 /**
@@ -51,6 +56,12 @@ export interface RequestLoginOtpResult {
   expiresAt: string;
   /** Seconds until the code dies, for the resend countdown. */
   expiresInSeconds: number;
+  /**
+   * Present only when the API is mocking SMS -- nothing was delivered, so this
+   * is the only way to finish the flow. Its ABSENCE is what tells the UI a real
+   * message went out, so never default it.
+   */
+  devOtpCode?: string;
 }
 
 /**

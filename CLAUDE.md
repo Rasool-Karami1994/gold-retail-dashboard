@@ -145,6 +145,16 @@ pnpm --filter api seed:admin
 - Web components use logical Tailwind utilities (`ps-*`, `end-*`), never
   left/right, and only semantic design tokens — no default palette classes like
   `bg-slate-900`.
+- **SMS is mocked unless a Kavenegar key is present.** `env.SMS_PROVIDER`
+  resolves to `mock` when `KAVENEGAR_API_KEY` is unset (`console` is a legacy
+  alias); the mock logs the message and returns its text. `devOtpCode` and
+  `devInvoiceMessage` are derived from that returned text, **not** from an env
+  read at the call site — so a real gateway cannot emit them however the
+  environment is configured. The mock refuses to load under
+  `NODE_ENV=production`, because it puts OTP codes in API responses.
+- **A figure with no axis to vary over gets `<StatCard>`, not `<ChartCard>`.**
+  A chart of one value draws a bar that always fills its plot area, so it says
+  nothing the number does not — the debt/credit sections were exactly that.
 - **A failed READ gets `<ErrorState>` where the content would have been; a
   failed WRITE gets a toast.** A toast is for something that happened beside
   what you are looking at — if the region itself is empty, the message belongs

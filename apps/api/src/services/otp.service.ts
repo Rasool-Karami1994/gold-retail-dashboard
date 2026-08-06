@@ -4,7 +4,7 @@ import { HttpError } from "../middleware/error-handler.js";
 import { CustomerModel } from "../models/customer.model.js";
 import { OtpRequestModel, type OtpPurpose } from "../models/otp-request.model.js";
 import { normalizeMobile } from "../lib/mobile.js";
-import { getSmsProvider, SmsError } from "./sms.js";
+import { getSmsProvider, SmsError, type SmsProvider } from "./sms.js";
 import { setAuthCookie } from "./token.service.js";
 import type { Response } from "express";
 
@@ -46,6 +46,15 @@ export interface RequestOtpResult {
   expiresAt: Date;
   /** Seconds until the code dies, for the client's countdown. */
   expiresInSeconds: number;
+  /**
+   * The code itself, present ONLY when SMS is mocked.
+   *
+   * Nothing was delivered in that mode, so this is the only way to finish a
+   * login locally. It is omitted entirely -- not blanked -- under a real
+   * gateway, so a production response cannot carry it even by accident. See the
+   * warning on MockSmsProvider.
+   */
+  devOtpCode?: string;
 }
 
 export async function requestOtp({
@@ -90,8 +99,10 @@ export async function requestOtp({
    * entry box waiting for a message that is never coming; a 502 at least tells
    * the UI to say "try again".
    */
+  let delivery: Awaited<ReturnType<SmsProvider["send"]>>;
+
   try {
-    await getSmsProvider().send({
+    delivery = await getSmsProvider().send({
       to: normalized,
       text: `کد ورود شما: ${code}\nاعتبار: ${minutes} دقیقه`,
       // Iranian gateways will not carry a one-time code on a normal sending
@@ -115,6 +126,10 @@ export async function requestOtp({
     purpose,
     expiresAt,
     expiresInSeconds: env.OTP_TTL_SECONDS,
+    // Keyed off what the provider actually returned, not off an env read here:
+    // only the mock hands text back, so a real gateway cannot produce this
+    // field however the environment is configured.
+    ...(delivery.text ? { devOtpCode: code } : {}),
   };
 }
 

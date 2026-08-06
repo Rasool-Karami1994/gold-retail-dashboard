@@ -164,6 +164,12 @@ export interface RequestOtpResult {
   expiresAt: string;
   /** Seconds until the code dies, for the resend countdown. */
   expiresInSeconds: number;
+  /**
+   * Present only when the API is mocking SMS -- nothing was delivered, so this
+   * is the only way to finish registering someone locally. Its ABSENCE means a
+   * real message went out, so never default it.
+   */
+  devOtpCode?: string;
 }
 
 /**

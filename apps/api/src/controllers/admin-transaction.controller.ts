@@ -2,9 +2,11 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import * as transactionService from "../services/transaction.service.js";
 import {
+  buildInvoiceSmsText,
   generateInvoicePdf,
   generateInvoicePdfInBackground,
 } from "../services/invoice.js";
+import { env } from "../config/env.js";
 import { validated } from "../middleware/validate.js";
 import { HttpError } from "../middleware/error-handler.js";
 import {
@@ -148,9 +150,35 @@ export async function list(_req: Request, res: Response) {
 
 /** GET /api/admin/transactions/:id */
 export async function getOne(req: Request, res: Response) {
-  res.json(
-    await transactionService.getTransactionDetail(req.params.id as string),
+  const transaction = await transactionService.getTransactionDetail(
+    req.params.id as string,
   );
+
+  /**
+   * The invoice SMS, for the admin to pass on by hand.
+   *
+   * It rides on this endpoint rather than on create because the PDF is rendered
+   * in the BACKGROUND -- at create time there is no URL yet, so there would be
+   * no link to hand over. The new-transaction screen already polls this route
+   * waiting for `invoicePdfUrl`, so the message arrives exactly when the thing
+   * it links to does.
+   *
+   * Omitted entirely under a real gateway: there the customer got the text, and
+   * echoing it back would be noise at best.
+   */
+  const devInvoiceMessage =
+    env.smsIsMock && transaction.invoicePdfUrl
+      ? buildInvoiceSmsText(
+          transaction.invoiceNumber,
+          transaction.totalAmount,
+          transaction.invoicePdfUrl,
+        )
+      : undefined;
+
+  res.json({
+    ...transaction.toJSON(),
+    ...(devInvoiceMessage ? { devInvoiceMessage } : {}),
+  });
 }
 
 /** POST /api/admin/transactions/:id/payments */

@@ -67,10 +67,11 @@ function escapeHtml(value: unknown): string {
  * there is a settings collection to hold them.
  */
 export const SHOP_INFO = {
-  name: "طلا و جواهر",
-  branch: "شعبه مرکزی",
-  phone: "۰۲۱-۰۰۰۰۰۰۰۰",
-  address: "نشانی فروشگاه — جایگزین شود",
+  name: "گالری طلای روزبه رضاوندی",
+  branch: "مرکز خرید و فروش طلا و ارز",
+  phone: "7291603-0831",
+  mobile: "09183336491",
+  address: "کرمانشاه- بازار زرگرها- پاساژ کوروش",
 } as const;
 
 export interface InvoiceTemplateData {
@@ -267,6 +268,8 @@ td.empty { text-align: center; color: #8b91a0; padding: 5mm; }
   <div>
     <div class="shop-name">${escapeHtml(SHOP_INFO.name)}</div>
     <div class="shop-meta">${escapeHtml(SHOP_INFO.branch)} — ${escapeHtml(SHOP_INFO.phone)}</div>
+        <div class="shop-name">${escapeHtml(SHOP_INFO.mobile)}</div>
+
     <div class="shop-meta">${escapeHtml(SHOP_INFO.address)}</div>
   </div>
   <div>
@@ -333,7 +336,7 @@ td.empty { text-align: center; color: #8b91a0; padding: 5mm; }
 </table>
 
 <div class="foot">
-  <span>این فاکتور به صورت خودکار صادر شده است.</span>
+  <span>این فاکتور به صورت اتوماتیک صادر شده است.</span>
   <span>${escapeHtml(invoiceNumber)}</span>
 </div>
 

@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api";
 import { requestLoginOtp, verifyLoginOtp } from "@/lib/auth-api";
 import { formatNumber } from "@/lib/format";
 import { isValidMobile, normalizeMobile } from "@/lib/mobile";
+import { announceOtpSent } from "@/lib/otp-toast";
 
 /**
  * Customer sign-in -- the site's front door.
@@ -98,6 +99,9 @@ export default function CustomerLoginForm() {
       setCode("");
       setSecondsLeft(result.expiresInSeconds);
       verify.reset();
+      // Shows the code itself when the API is mocking SMS; otherwise just
+      // confirms a message went out.
+      announceOtpSent(result.devOtpCode);
     },
   });
 
