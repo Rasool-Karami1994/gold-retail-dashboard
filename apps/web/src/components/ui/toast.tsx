@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import {
   useToastStore,
@@ -30,10 +31,58 @@ const iconColor: Record<ToastVariant, string> = {
   info: "text-info",
 };
 
+/**
+ * The open `<dialog>`, if there is one, so the stack can be rendered inside it.
+ *
+ * WHY THIS EXISTS. `<Modal>` opens with showModal(), which promotes the dialog
+ * to the browser's TOP LAYER -- painted above every normal stacking context,
+ * z-index irrelevant. A toast raised while a modal was open (the mock OTP code
+ * in the add-customer flow, for one) was drawn underneath it and its dimming
+ * backdrop: invisible, and impossible to dismiss.
+ *
+ * Joining the top layer via the popover attribute does not fix it. A popover
+ * shown *after* a modal dialog still paints below it, and re-promoting it makes
+ * no difference -- verified in the browser before settling on this.
+ *
+ * So the stack goes INSIDE the dialog, which is the one place guaranteed to be
+ * above it. Watching the DOM rather than asking Modal to co-operate keeps the
+ * fix in this file and covers any future dialog, including ones this component
+ * knows nothing about.
+ */
+function useTopLayerHost(): HTMLElement | null {
+  const [host, setHost] = React.useState<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    const sync = () => {
+      // Last in document order: with nested dialogs the innermost is the one
+      // on top, and that is where a toast has to go to be seen.
+      const open = document.querySelectorAll<HTMLDialogElement>("dialog[open]");
+      setHost(open.length ? (open[open.length - 1] as HTMLElement) : null);
+    };
+
+    sync();
+
+    // `open` is a plain attribute, so a mutation observer sees showModal() and
+    // close() without Modal having to announce either.
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["open"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  return host;
+}
+
 export function Toaster() {
   const toasts = useToastStore((s) => s.toasts);
+  const host = useTopLayerHost();
 
-  return (
+  const stack = (
     <div
       // `role="region"` + polite live region: additions are announced without
       // interrupting whatever the screen reader is currently saying. Errors
@@ -50,6 +99,11 @@ export function Toaster() {
       ))}
     </div>
   );
+
+  // `fixed` positions against the viewport either way, so the stack sits in the
+  // same corner whether it is portaled or not. A dialog's UA `overflow: auto`
+  // does not clip it: fixed descendants escape ancestor overflow.
+  return host ? createPortal(stack, host) : stack;
 }
 
 function ToastItem({ toast }: { toast: ToastEntry }) {
