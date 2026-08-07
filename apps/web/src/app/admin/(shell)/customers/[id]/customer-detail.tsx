@@ -125,10 +125,18 @@ export function CustomerDetail({ id }: { id: string }) {
           "مجموع خرید". Naming the direction outright is what stops it
           happening again; "فروش" alone is ambiguous on this screen.
         */}
+        {/*
+          Tones follow the `type` badge in the transactions table below, not
+          an in/out reading of the money: a 'sell' is amber there and a 'buy' is
+          green, so the same deal has to carry the same colour in the summary
+          above it. Two colour languages on one screen is worse than either.
+          Change one, change the other -- the badge lives in
+          components/transactions/transactions-table.tsx.
+        */}
         <StatTile
           label="مجموع فروش به مشتری (تومان)"
           value={totals ? formatToman(totals.totalPurchased) : null}
-          tone="success"
+          tone="warning"
           icon={
             <Icon>
               <path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
@@ -138,7 +146,7 @@ export function CustomerDetail({ id }: { id: string }) {
         <StatTile
           label="مجموع خرید از مشتری (تومان)"
           value={totals ? formatToman(totals.totalSold) : null}
-          tone="warning"
+          tone="success"
           icon={
             <Icon>
               <path d="M3 6h18l-1.5 12a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2Z" />
