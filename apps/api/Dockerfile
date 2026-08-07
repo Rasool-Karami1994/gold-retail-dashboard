@@ -142,9 +142,10 @@ RUN apk add --no-cache \
 COPY --from=fonts /staged-fonts/ /usr/share/fonts/vazir/
 RUN fc-cache -f
 
-# CHROME_EXECUTABLE_PATH is the one findChrome() in services/invoice.ts reads,
-# and it THROWS if the path does not exist rather than falling back to its
-# probe -- which is why the apk layer above asserts the binary is really there.
+# PUPPETEER_EXECUTABLE_PATH is what findChrome() in services/invoice.ts reads
+# first; CHROME_EXECUTABLE_PATH is set too, as the repo's older name. Either
+# THROWS if the path does not exist rather than falling back to the probe --
+# which is why the apk layer above asserts the binary is really there.
 ENV NODE_ENV=production \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \

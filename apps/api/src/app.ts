@@ -12,6 +12,7 @@ import { adminTransactionRouter } from "./routes/admin-transaction.routes.js";
 import { customerAuthRouter } from "./routes/customer-auth.routes.js";
 import { customerMeRouter } from "./routes/customer-me.routes.js";
 import { customerTransactionRouter } from "./routes/customer-transaction.routes.js";
+import { livenessRouter } from "./routes/health.routes.js";
 import { authenticate } from "./middleware/auth.js";
 import { errorHandler, notFound } from "./middleware/error-handler.js";
 
@@ -35,6 +36,14 @@ export function createApp(): Express {
     }),
   );
   app.use(morgan(env.LOG_FORMAT));
+
+  // Mounted here, ahead of the body parsers and `authenticate`, so a keep-alive
+  // ping costs nothing but the route match -- no JSON parsing, no cookie
+  // parsing, no JWT verification. Still behind morgan, because "is the pinger
+  // actually reaching us?" is the first thing anyone asks when a free instance
+  // spins down anyway.
+  app.use("/api/health", livenessRouter);
+
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());

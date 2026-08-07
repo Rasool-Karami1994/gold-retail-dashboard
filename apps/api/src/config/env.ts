@@ -117,12 +117,38 @@ const schema = z.object({
   /**
    * Path to a Chrome/Chromium binary for PDF rendering.
    *
-   * We use puppeteer-core, which drives an existing browser rather than
-   * downloading its own -- Google's browser CDN returns 403 from some regions,
-   * which makes the bundled-Chromium install fail outright. Leave unset to
-   * auto-detect the usual install locations; set it explicitly in Docker.
+   * PUPPETEER_EXECUTABLE_PATH is the primary name -- it is what Puppeteer's own
+   * docs use, what the Docker image sets, and what Render's Puppeteer recipe
+   * tells you to configure. CHROME_EXECUTABLE_PATH is this repo's older name
+   * and is still honoured, so existing .env files keep working.
+   *
+   * Leave both unset to auto-detect: services/invoice.ts scans the Puppeteer
+   * browser cache and then the usual system install locations.
    */
+  PUPPETEER_EXECUTABLE_PATH: z.string().optional(),
   CHROME_EXECUTABLE_PATH: z.string().optional(),
+
+  /**
+   * Where `npx puppeteer browsers install chrome` put its download.
+   *
+   * Only needed when it is not the default (~/.cache/puppeteer). On Render it
+   * usually is: the build cache is the only thing that survives to run time, so
+   * the documented recipe points this at a directory inside the project.
+   */
+  PUPPETEER_CACHE_DIR: z.string().optional(),
+
+  /**
+   * Adds --single-process to the Chromium launch args. Default OFF.
+   *
+   * The flag saves the most memory of anything available and breaks PDF
+   * rendering outright -- `Page.printToPDF` needs a compositor process that
+   * single-process mode does not provide, so every invoice fails with
+   * "Target closed". See LAUNCH_ARGS in services/invoice.ts. Exposed only so
+   * the result can be reproduced on another host without editing code.
+   */
+  PUPPETEER_SINGLE_PROCESS: z
+    .preprocess((value) => value === "true" || value === "1", z.boolean())
+    .default(false),
 
   /**
    * Cloudinary credentials. THE ONLY STORAGE FOR RENDERED INVOICES.

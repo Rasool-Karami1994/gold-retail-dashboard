@@ -233,6 +233,32 @@ the record without re-texting the customer.
 
 ---
 
+## 7a. Render's free tier
+
+512 MB of RAM, and the instance spins down after 15 minutes with no traffic. Two
+things follow.
+
+**Point an uptime pinger at `GET /api/health`.** It always answers 200
+`{ "status": "ok" }`, makes no database call, and is mounted ahead of the body
+parsers and the auth middleware, so a ping costs a route match and nothing else.
+Do not use `/api/v1/health` for this: it reports Mongo's state, so a cold or
+briefly unreachable database turns a keep-alive ping into a 503 and pages you
+about a service that is fine.
+
+**Chromium is the memory risk, not the app.** A resident browser is roughly
+100–200 MB of the 512, and a render peaks well above idle. If invoices start
+failing, the log will say which of the three shapes it was — failed to launch,
+died mid-render, or stopped responding — and `services/invoice.ts` classifies
+them explicitly so the answer is in the first line of the entry rather than
+buried in a stack trace.
+
+`--single-process` looks like the obvious fix and is not: it breaks
+`Page.printToPDF` outright, so every invoice fails with `Target closed`. See the
+comment on `LAUNCH_ARGS`. The lever that does work is not keeping the browser
+resident between renders.
+
+---
+
 ## 8. Verify
 
 ```bash

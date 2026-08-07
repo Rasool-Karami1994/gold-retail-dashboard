@@ -501,7 +501,16 @@ in `config/env.ts`, and add a case to the factory. Callers only ever see
 
 | Method | Path | |
 | --- | --- | --- |
+| `GET` | `/api/health` | Liveness only. Always 200 `{ status: "ok" }`, touches nothing |
 | `GET` | `/api/v1/health` | Liveness + Mongo status (503 when the DB is down) |
+
+The two are not redundant. `/api/health` is mounted ahead of the body parsers
+and the auth middleware and makes no database call, so it is the cheapest reply
+the server can produce — that is what an external uptime pinger should hit to
+keep a free-tier instance from spinning down, and it cannot turn a keep-alive
+ping into a false alert. `/api/v1/health` is the real readiness check and is
+what the Docker healthcheck and any orchestrator should use, because "up but
+cannot reach its database" is precisely the state they need to see.
 | `GET` | `/api/v1/courses` | List; `?page=&limit=&published=&search=` |
 | `GET` | `/api/v1/courses/:id` | One course |
 | `POST` | `/api/v1/courses` | Create |
