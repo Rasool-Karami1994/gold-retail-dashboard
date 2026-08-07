@@ -112,29 +112,37 @@ export function CustomerDetail({ id }: { id: string }) {
           }
         />
         {/*
-          These two are named from the CUSTOMER's side of the counter, matching
-          the directory: "purchased" is what they bought from the shop (type
-          'sell'), "sold" is what they sold to it (type 'buy'). Both are gross
-          deal value, not what has been settled.
+          LABELLED FROM THE SHOP'S SIDE OF THE COUNTER, because this is the
+          staff panel and everything else in it already is -- a transaction of
+          type 'sell' is badged "فروش به مشتری" in the list and on the detail
+          page.
+
+          The API's field names are the customer's side: `totalPurchased` is
+          what the CUSTOMER bought, which is the shop SELLING (type 'sell'), and
+          `totalSold` is what they sold to the shop (type 'buy'). Reading those
+          names as though they were the shop's is what put the wrong figure
+          under each heading -- a customer with one sale showed it under
+          "مجموع خرید". Naming the direction outright is what stops it
+          happening again; "فروش" alone is ambiguous on this screen.
         */}
         <StatTile
-          label="مجموع خرید (تومان)"
+          label="مجموع فروش به مشتری (تومان)"
           value={totals ? formatToman(totals.totalPurchased) : null}
+          tone="success"
+          icon={
+            <Icon>
+              <path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </Icon>
+          }
+        />
+        <StatTile
+          label="مجموع خرید از مشتری (تومان)"
+          value={totals ? formatToman(totals.totalSold) : null}
           tone="warning"
           icon={
             <Icon>
               <path d="M3 6h18l-1.5 12a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2Z" />
               <path d="M8 6V5a4 4 0 0 1 8 0v1" />
-            </Icon>
-          }
-        />
-        <StatTile
-          label="مجموع فروش (تومان)"
-          value={totals ? formatToman(totals.totalSold) : null}
-          tone="success"
-          icon={
-            <Icon>
-              <path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
             </Icon>
           }
         />

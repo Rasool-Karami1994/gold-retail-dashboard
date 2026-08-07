@@ -90,20 +90,23 @@ export function CustomersTable() {
         align: "center",
         width: "8rem",
       },
+      // Headed from the SHOP's side, matching the rest of the staff panel --
+      // `totalPurchased` is what the customer bought, i.e. the shop's sales.
+      // See the note on the same pair in customers/[id]/customer-detail.tsx.
       {
         id: "totalPurchased",
-        header: "مجموع خرید (تومان)",
+        header: "مجموع فروش به مشتری (تومان)",
         cell: (row) => formatToman(row.totalPurchased),
         align: "end",
-        width: "11rem",
+        width: "12rem",
         hideOnMobile: true,
       },
       {
         id: "totalSold",
-        header: "مجموع فروش (تومان)",
+        header: "مجموع خرید از مشتری (تومان)",
         cell: (row) => formatToman(row.totalSold),
         align: "end",
-        width: "11rem",
+        width: "12rem",
         hideOnMobile: true,
       },
       {

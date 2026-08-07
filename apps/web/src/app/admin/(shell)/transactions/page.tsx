@@ -15,7 +15,7 @@ export default function TransactionsPage() {
     <div className="flex flex-col gap-6 p-6">
       <PageHeader
         eyebrow="پنل مدیریت"
-        title="فاکتورها"
+        title="معاملات"
         description="همه‌ی معاملات، با فیلتر بر اساس مشتری، شماره فاکتور و تاریخ."
         actions={
           <Link href="/admin/transactions/new" className={buttonStyles()}>

@@ -6,7 +6,7 @@ export default function NewTransactionPage() {
     <div className="flex flex-col gap-6 p-6">
       <PageHeader
         breadcrumbs={[
-          { label: "فاکتورها", href: "/admin/transactions" },
+          { label: "معاملات", href: "/admin/transactions" },
           { label: "ثبت معامله" },
         ]}
         eyebrow="پنل مدیریت"
