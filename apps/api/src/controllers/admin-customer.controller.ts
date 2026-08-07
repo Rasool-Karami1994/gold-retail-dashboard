@@ -4,8 +4,6 @@ import * as customerService from "../services/customer.service.js";
 import { validated } from "../middleware/validate.js";
 import { MOBILE_PATTERN, normalizeMobile } from "../lib/mobile.js";
 
-/* ---- Schemas ------------------------------------------------------------- */
-
 export const listQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
@@ -44,8 +42,6 @@ export const updateCustomerSchema = z
   .refine((body) => Object.keys(body).length > 0, {
     message: "Provide at least one of firstName or lastName",
   });
-
-/* ---- Handlers ------------------------------------------------------------ */
 
 /** GET /api/admin/customers */
 export async function list(_req: Request, res: Response) {

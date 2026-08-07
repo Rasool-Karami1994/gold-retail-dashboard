@@ -17,10 +17,6 @@ import { normalizeMobile } from "../lib/mobile.js";
  * the provider below is the only file that would change.
  */
 
-/* -------------------------------------------------------------------------- */
-/* Interface                                                                   */
-/* -------------------------------------------------------------------------- */
-
 export interface SmsMessage {
   /** Recipient. Normalised to `09XXXXXXXXX` before sending. */
   to: string;
@@ -69,10 +65,6 @@ export class SmsError extends Error {
     this.name = "SmsError";
   }
 }
-
-/* -------------------------------------------------------------------------- */
-/* Mock stub                                                                   */
-/* -------------------------------------------------------------------------- */
 
 /**
  * Development stub: prints the message instead of sending it, and hands the
@@ -130,10 +122,6 @@ export class MockSmsProvider implements SmsProvider {
  * existing .env keeps resolving; env.ts folds that value into `mock`.
  */
 export const ConsoleSmsProvider = MockSmsProvider;
-
-/* -------------------------------------------------------------------------- */
-/* Kavenegar                                                                   */
-/* -------------------------------------------------------------------------- */
 
 const KAVENEGAR_BASE = "https://api.kavenegar.com/v1";
 
@@ -278,10 +266,6 @@ export class KavenegarSmsProvider implements SmsProvider {
     return body;
   }
 }
-
-/* -------------------------------------------------------------------------- */
-/* Factory                                                                     */
-/* -------------------------------------------------------------------------- */
 
 function createProvider(): SmsProvider {
   switch (env.SMS_PROVIDER) {

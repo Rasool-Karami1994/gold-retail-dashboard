@@ -74,8 +74,6 @@ const detailsSchema = z.object({
 
 type DetailsValues = z.infer<typeof detailsSchema>;
 
-/* ---- Error messages ------------------------------------------------------ */
-
 /**
  * Mapped on HTTP status, never on `error.message`: the API answers in English,
  * and its wording is a server concern that should not surface in a Persian UI.
@@ -146,8 +144,6 @@ function messageForCreate(error: unknown): string {
       return SERVER;
   }
 }
-
-/* ---- Wizard -------------------------------------------------------------- */
 
 export interface NewCustomerWizardProps {
   /** Prefills the mobile, for when the caller already knows what was typed. */

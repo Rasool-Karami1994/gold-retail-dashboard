@@ -19,8 +19,6 @@ import {
  * as an invoice that is correct nine times out of ten.
  */
 
-/* ---- Persian labels ------------------------------------------------------ */
-
 const TYPE_LABELS: Record<TransactionType, string> = {
   sell: "فروش به مشتری",
   buy: "خرید از مشتری",
@@ -59,8 +57,6 @@ function escapeHtml(value: unknown): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-
-/* ---- Shop details -------------------------------------------------------- */
 
 /**
  * Placeholder shop identity. Swap for real values, or lift into config once

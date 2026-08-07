@@ -90,8 +90,6 @@ export function fetchTransactions(
   );
 }
 
-/* ---- Detail -------------------------------------------------------------- */
-
 /** A recorded instalment, as it comes back on a transaction. */
 export interface TransactionPayment {
   method: "cash" | "bank";
@@ -129,8 +127,6 @@ export function fetchTransaction(id: string) {
     `/api/admin/transactions/${encodeURIComponent(id)}`,
   );
 }
-
-/* ---- Create -------------------------------------------------------------- */
 
 export interface TransactionPaymentInput {
   method: "cash" | "bank";
@@ -177,8 +173,6 @@ export function regenerateInvoice(id: string) {
     { method: "POST" },
   );
 }
-
-/* ---- The signed-in customer's own transactions --------------------------- */
 
 /**
  * A different endpoint, not a filtered version of the admin one.
@@ -242,8 +236,6 @@ export function fetchMyTransaction(id: string) {
     `/api/customer/transactions/${encodeURIComponent(id)}`,
   );
 }
-
-/* ---- Query keys ---------------------------------------------------------- */
 
 export const transactionKeys = {
   all: ["transactions"] as const,

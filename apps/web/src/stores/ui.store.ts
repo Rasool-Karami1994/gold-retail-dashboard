@@ -92,8 +92,6 @@ export const useUiStore = create<UiState>()(
   ),
 );
 
-/* ---- Selectors ----------------------------------------------------------- */
-
 export const useSidebarCollapsed = () => useUiStore((s) => s.sidebarCollapsed);
 export const useSidebarDrawerOpen = () => useUiStore((s) => s.sidebarDrawerOpen);
 

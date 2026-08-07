@@ -50,8 +50,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   };
 
-  /* ---- Root ------------------------------------------------------------ */
-
   if (pathname === "/") {
     if (admin) return redirect(ROUTES.adminHome);
     if (customer) return redirect(ROUTES.customerHome);
@@ -60,8 +58,6 @@ export async function middleware(request: NextRequest) {
     // no longer need.
     return NextResponse.next();
   }
-
-  /* ---- Admin area ------------------------------------------------------ */
 
   if (isAdminPath(pathname)) {
     if (pathname === ROUTES.adminRoot) {
@@ -76,8 +72,6 @@ export async function middleware(request: NextRequest) {
     // A customer session is not an admin session -- same redirect either way.
     return admin ? NextResponse.next() : redirectToLogin(ROUTES.adminLogin);
   }
-
-  /* ---- Customer area --------------------------------------------------- */
 
   // No branch for `customerLogin` here: it is "/", which the root block above
   // already answered.

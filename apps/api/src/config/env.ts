@@ -16,8 +16,6 @@ const schema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   LOG_FORMAT: z.string().default("dev"),
 
-  /* ---- Auth ------------------------------------------------------------ */
-
   // 32 chars is the floor for a usable HS256 secret. Generate one with:
   //   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
   JWT_SECRET: z
@@ -30,8 +28,6 @@ const schema = z.object({
 
   /** Set for cross-subdomain cookies (e.g. ".example.com"). Usually unset. */
   COOKIE_DOMAIN: z.string().optional(),
-
-  /* ---- OTP ------------------------------------------------------------- */
 
   OTP_LENGTH: z.coerce.number().int().min(4).max(8).default(5),
   OTP_TTL_SECONDS: z.coerce.number().int().positive().default(120),
@@ -80,8 +76,6 @@ const schema = z.object({
    */
   KAVENEGAR_SENDER: z.string().optional(),
 
-  /* ---- Invoices -------------------------------------------------------- */
-
   /**
    * Public origin of this API, used to build the absolute invoice URL that
    * goes out by SMS. Must be reachable from a customer's phone -- localhost
@@ -101,8 +95,6 @@ const schema = z.object({
 
   /** Where generated PDFs are written. Relative paths resolve to the api root. */
   INVOICE_STORAGE_DIR: z.string().default("uploads/invoices"),
-
-  /* ---- Seeding --------------------------------------------------------- */
 
   // Consumed only by `pnpm --filter api seed:admin`, never by the server.
   SEED_ADMIN_USERNAME: z.string().optional(),

@@ -17,8 +17,6 @@ import {
   TRANSACTION_TYPES,
 } from "../models/transaction.model.js";
 
-/* ---- Shared field schemas ------------------------------------------------ */
-
 const objectId = z
   .string()
   .trim()
@@ -68,8 +66,6 @@ const paymentSchema = z
     }
   });
 
-/* ---- Schemas ------------------------------------------------------------- */
-
 /**
  * `totalAmount`, `invoiceNumber` and `status` are absent on purpose -- all
  * three are derived by the model. Accepting them would let a client write a
@@ -104,8 +100,6 @@ export const listQuerySchema = z.object({
   (query) => !query.dateFrom || !query.dateTo || query.dateFrom <= query.dateTo,
   { path: ["dateFrom"], message: "dateFrom must be on or before dateTo" },
 );
-
-/* ---- Handlers ------------------------------------------------------------ */
 
 /** POST /api/admin/transactions */
 export async function create(req: Request, res: Response) {

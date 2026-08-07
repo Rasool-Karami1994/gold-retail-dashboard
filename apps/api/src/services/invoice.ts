@@ -24,10 +24,6 @@ import { formatToman } from "../lib/jalali.js";
  * find a normal Chrome/Edge install.
  */
 
-/* -------------------------------------------------------------------------- */
-/* Paths                                                                       */
-/* -------------------------------------------------------------------------- */
-
 /**
  * The api package root, resolved from this module's own location.
  *
@@ -44,10 +40,6 @@ const FONT_DIR = join(PACKAGE_ROOT, "assets", "fonts");
 export const INVOICE_DIR = isAbsolute(env.INVOICE_STORAGE_DIR)
   ? env.INVOICE_STORAGE_DIR
   : join(PACKAGE_ROOT, env.INVOICE_STORAGE_DIR);
-
-/* -------------------------------------------------------------------------- */
-/* Fonts                                                                       */
-/* -------------------------------------------------------------------------- */
 
 const FONT_FACES = [
   { file: "Vazir-Regular-FD.woff2", weight: 400 },
@@ -84,10 +76,6 @@ async function getFontFaces(): Promise<string> {
   fontFacesCss = blocks.join("\n");
   return fontFacesCss;
 }
-
-/* -------------------------------------------------------------------------- */
-/* Browser                                                                     */
-/* -------------------------------------------------------------------------- */
 
 /** Common install locations, checked in order when the env var is unset. */
 const CHROME_CANDIDATES = [
@@ -194,10 +182,6 @@ export async function closeInvoiceBrowser(): Promise<void> {
   await browser?.close().catch(() => undefined);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Filenames                                                                   */
-/* -------------------------------------------------------------------------- */
-
 /**
  * Filenames must be unguessable, because GET /api/invoices/:filename is public
  * -- that is the point, so an SMS link opens without a login.
@@ -216,10 +200,6 @@ function buildFilename(invoiceNumber: string): string {
 
 /** Matches what `buildFilename` produces, and nothing else. */
 export const INVOICE_FILENAME_PATTERN = /^INV-\d{8}-\d{4}-[0-9a-f]{32}\.pdf$/;
-
-/* -------------------------------------------------------------------------- */
-/* Generation                                                                  */
-/* -------------------------------------------------------------------------- */
 
 export interface GeneratedInvoice {
   filename: string;

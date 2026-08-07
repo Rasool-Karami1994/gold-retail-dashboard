@@ -47,8 +47,6 @@ export function fetchAdminMe() {
 /** Query key for the session lookup, shared so nothing invalidates a typo. */
 export const adminMeKey = ["admin", "me"] as const;
 
-/* ---- Customer sign-in ---------------------------------------------------- */
-
 export interface RequestLoginOtpResult {
   /** Normalised by the API. Use THIS to verify, not the raw input. */
   mobile: string;
@@ -155,7 +153,6 @@ export function toCustomerAuthUser(me: CustomerMe): AuthUser {
   };
 }
 
-/** Shapes the login response into the store's user. */
 export function toAuthUser(response: AdminLoginResponse): AuthUser {
   return {
     id: response.admin.id,

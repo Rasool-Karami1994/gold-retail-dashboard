@@ -108,10 +108,6 @@ export async function getTransactionDetail(id: string) {
   return transaction;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Listing                                                                     */
-/* -------------------------------------------------------------------------- */
-
 export interface AdminListFilters {
   page: number;
   limit: number;
@@ -247,10 +243,6 @@ export async function getCustomerTransaction(customerId: string, id: string) {
   if (!transaction) throw new HttpError(404, "Transaction not found");
   return transaction;
 }
-
-/* -------------------------------------------------------------------------- */
-/* Shared paging                                                               */
-/* -------------------------------------------------------------------------- */
 
 async function runPagedQuery(
   query: Record<string, unknown>,

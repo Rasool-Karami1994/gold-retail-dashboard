@@ -83,7 +83,6 @@ export function requireRole(role: Role): RequestHandler {
 export const requireAdmin = requireRole("admin");
 export const requireCustomer = requireRole("customer");
 
-/** True when a valid session for `role` is on the request. */
 export function hasRole(req: Request, role: Role): boolean {
   return req.sessions?.[role] !== undefined;
 }
