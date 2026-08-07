@@ -60,8 +60,50 @@ export function normalizeCard(value: string): string {
   return toLatinDigits(value).replace(/[\s-]/g, "");
 }
 
+/** What the Sheba field starts with, so only the digits have to be typed. */
+export const IBAN_PREFIX = "IR";
+
+/**
+ * A Sheba, however it was typed or pasted.
+ *
+ * People copy these out of a banking app in every shape: spaced every four
+ * characters, lowercase, sometimes without the IR because the app shows it
+ * separately. Normalising all of that to a bare `IR` + 24 digits lets the
+ * validator be strict without the field feeling hostile.
+ *
+ * A LONE "IR" NORMALISES TO EMPTY. The field is seeded with the prefix so the
+ * user types digits and nothing else, which means an untouched field still has
+ * content in it. Treating that as blank here is what keeps the field optional:
+ * everything downstream tests the normalised value, so no caller has to know
+ * the prefix was pre-filled.
+ */
+export function normalizeIban(value: string): string {
+  const bare = toLatinDigits(value).replace(/[\s-]/g, "").toUpperCase();
+  const digits = bare.startsWith(IBAN_PREFIX)
+    ? bare.slice(IBAN_PREFIX.length)
+    : bare;
+
+  return digits === "" ? "" : `${IBAN_PREFIX}${digits}`;
+}
+
 export const PAYMENT_METHODS = ["cash", "bank"] as const;
 export const BANK_TYPES = ["paya", "card-to-card", "bridge"] as const;
+
+/**
+ * Which destination each bank route records.
+ *
+ * A card-to-card transfer names a card; paya and bridge settle to an account
+ * and have no card involved. Everything that renders or validates the field
+ * reads this rather than testing the bankType inline, so the form, the schema
+ * and the payload builder cannot disagree about which one a route uses.
+ */
+export function destinationKindFor(
+  bankType: string | undefined | null,
+): "card" | "iban" | null {
+  if (bankType === "card-to-card") return "card";
+  if (bankType === "paya" || bankType === "bridge") return "iban";
+  return null;
+}
 export const TRANSACTION_TYPES = ["sell", "buy"] as const;
 export const GOLD_TYPES = ["melted", "new", "second-hand"] as const;
 
@@ -77,6 +119,7 @@ export const paymentSchema = z
     // whether that is allowed for this row's method.
     bankType: z.union([z.enum(BANK_TYPES), z.literal("")]).optional(),
     destinationCard: z.string().trim().optional(),
+    destinationIban: z.string().trim().optional(),
   })
   .superRefine((payment, ctx) => {
     if (payment.method !== "bank") return;
@@ -90,19 +133,41 @@ export const paymentSchema = z
       return;
     }
 
+    /**
+     * Paya and bridge settle to an account, so they record a Sheba and never a
+     * card. Validated here rather than left to the API: it rejects the wrong
+     * one outright, and a 400 surfacing as a whole-form error is a worse way to
+     * learn it than a message on the field.
+     */
+    if (destinationKindFor(payment.bankType) === "iban") {
+      const iban = payment.destinationIban
+        ? normalizeIban(payment.destinationIban)
+        : "";
+
+      // Optional, as the card was for these routes before: staff do not always
+      // have the Sheba to hand at the counter, and blocking a recorded payment
+      // over it would be worse than a blank destination.
+      if (iban && !/^IR\d{24}$/.test(iban)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["destinationIban"],
+          message: "شماره شبا باید IR و ۲۴ رقم باشد",
+        });
+      }
+      return;
+    }
+
     const card = payment.destinationCard
       ? normalizeCard(payment.destinationCard)
       : "";
 
     /**
-     * Required for card-to-card, optional for the other two.
+     * Required for card-to-card, which is the only route that has one.
      *
-     * Paya and bridge transfers settle to an account by IBAN -- there is no
-     * card in the transaction to record, so demanding one would block a
-     * perfectly ordinary payment. A card-to-card transfer by definition has a
-     * destination card, and it is the only trace of where the money went.
+     * A card-to-card transfer by definition has a destination card, and it is
+     * the only trace of where the money went.
      */
-    if (payment.bankType === "card-to-card" && !card) {
+    if (!card) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["destinationCard"],
@@ -111,7 +176,7 @@ export const paymentSchema = z
       return;
     }
 
-    if (card && !/^\d{16}$/.test(card)) {
+    if (!/^\d{16}$/.test(card)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["destinationCard"],
@@ -157,6 +222,9 @@ export const emptyPayment: PaymentFormValues = {
   amount: "",
   bankType: "",
   destinationCard: "",
+  // Seeded with the prefix, not blank -- see normalizeIban, which reads a lone
+  // "IR" back as empty so the field stays optional.
+  destinationIban: IBAN_PREFIX,
 };
 
 export const TYPE_LABELS: Record<(typeof TRANSACTION_TYPES)[number], string> = {

@@ -40,6 +40,14 @@ const paymentSchema = z
       .trim()
       .regex(/^\d{16}$/, "Destination card must be 16 digits")
       .optional(),
+    // "شبا": the literal IR then 24 digits. Uppercased before the check so a
+    // pasted "ir85…" is accepted rather than failing on the prefix alone.
+    destinationIban: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^IR\d{24}$/, "Destination IBAN must be IR followed by 24 digits")
+      .optional(),
     paidAt: z.coerce.date().optional(),
   })
   .superRefine((payment, ctx) => {
@@ -62,6 +70,39 @@ const paymentSchema = z
         code: z.ZodIssueCode.custom,
         path: ["destinationCard"],
         message: "destinationCard is not allowed on a cash payment",
+      });
+    }
+    if (payment.method === "cash" && payment.destinationIban) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["destinationIban"],
+        message: "destinationIban is not allowed on a cash payment",
+      });
+    }
+
+    /**
+     * Each bank route carries its own kind of destination, and only its own.
+     *
+     * Rejected rather than ignored, for the reason given at the top of this
+     * schema: a client that sends an IBAN on a card-to-card row has
+     * misunderstood something, and silently dropping the value would store a
+     * payment with no destination at all while answering 201.
+     */
+    if (payment.bankType === "card-to-card" && payment.destinationIban) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["destinationIban"],
+        message: "card-to-card records a destinationCard, not an IBAN",
+      });
+    }
+    if (
+      (payment.bankType === "paya" || payment.bankType === "bridge") &&
+      payment.destinationCard
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["destinationCard"],
+        message: `${payment.bankType} settles to an IBAN, so it records a destinationIban, not a card`,
       });
     }
   });

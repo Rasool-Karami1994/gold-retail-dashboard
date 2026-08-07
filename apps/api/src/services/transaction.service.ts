@@ -29,7 +29,10 @@ export interface PaymentInput {
   method: PaymentMethod;
   amount: number;
   bankType?: BankType;
+  /** card-to-card only. */
   destinationCard?: string;
+  /** paya and bridge only -- they settle to an account, not a card. */
+  destinationIban?: string;
   paidAt?: Date;
 }
 

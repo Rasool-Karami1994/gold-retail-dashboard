@@ -519,6 +519,7 @@ export async function generateInvoicePdf(
       amount: payment.amount,
       bankType: payment.bankType ?? null,
       destinationCard: payment.destinationCard ?? null,
+      destinationIban: payment.destinationIban ?? null,
       paidAt: payment.paidAt,
     })),
     fontFaces: await getFontFaces(),

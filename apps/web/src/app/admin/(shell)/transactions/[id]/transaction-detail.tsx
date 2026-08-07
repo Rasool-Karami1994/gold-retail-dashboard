@@ -346,18 +346,27 @@ function PaymentsList({ payments }: { payments: TransactionPayment[] }) {
         width: "8rem",
       },
       {
-        id: "destinationCard",
-        header: "کارت مقصد",
-        // Paya and bridge settle by IBAN, so most bank rows have no card.
-        cell: (row) =>
-          row.destinationCard ? (
-            <span className="font-mono text-xs" dir="ltr">
-              {row.destinationCard}
+        id: "destination",
+        // One column for both, because a row only ever has one: card-to-card
+        // records a card, paya and bridge record a Sheba. Two columns would be
+        // half empty whichever route the shop uses most.
+        header: "مقصد",
+        cell: (row) => {
+          const value = row.destinationCard ?? row.destinationIban;
+          if (!value) return <span className="text-fg-muted">—</span>;
+
+          return (
+            <span className="flex flex-col gap-0.5">
+              <span className="text-2xs text-fg-muted">
+                {row.destinationCard ? "کارت" : "شبا"}
+              </span>
+              <span className="font-mono text-xs" dir="ltr">
+                {value}
+              </span>
             </span>
-          ) : (
-            <span className="text-fg-muted">—</span>
-          ),
-        width: "12rem",
+          );
+        },
+        width: "14rem",
         hideOnMobile: true,
       },
       {

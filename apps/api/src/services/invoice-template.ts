@@ -86,6 +86,7 @@ export interface InvoiceTemplateData {
     amount: number;
     bankType?: BankType | null;
     destinationCard?: string | null;
+    destinationIban?: string | null;
     paidAt: Date;
   }>;
   /** `@font-face` block with the fonts already base64-inlined. */
@@ -125,19 +126,24 @@ export function renderInvoiceHtml(data: InvoiceTemplateData): string {
             payment.method === "bank"
               ? [
                   payment.bankType ? BANK_TYPE_LABELS[payment.bankType] : null,
+                  // Whichever destination this route records. Only the last
+                  // four characters are printed -- the invoice is readable by
+                  // anyone holding the link.
+                  //
+                  // The masked run is bidi-isolated. Without it the digits are
+                  // a left-to-right island inside right-to-left text, so
+                  // "****7890" reorders on screen to "7890****", which reads as
+                  // though the FIRST four were the visible ones. Same
+                  // characters, opposite meaning.
                   payment.destinationCard
-                    ? // Only the last four digits are printed -- the invoice is
-                      // readable by anyone holding the link.
-                      //
-                      // The masked run is bidi-isolated. Without it the digits
-                      // are a left-to-right island inside right-to-left text,
-                      // so "****7890" reorders on screen to "7890****", which
-                      // reads as though the FIRST four digits were the visible
-                      // ones. Same characters, opposite meaning.
-                      `کارت <span class="mask">****${escapeHtml(
+                    ? `کارت <span class="mask">****${escapeHtml(
                         payment.destinationCard.slice(-4),
                       )}</span>`
-                    : null,
+                    : payment.destinationIban
+                      ? `شبا <span class="mask">****${escapeHtml(
+                          payment.destinationIban.slice(-4),
+                        )}</span>`
+                      : null,
                 ]
                   .filter(Boolean)
                   .join(" — ")

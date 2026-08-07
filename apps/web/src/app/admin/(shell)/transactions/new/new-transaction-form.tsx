@@ -37,7 +37,9 @@ import {
   GOLD_TYPE_LABELS,
   TRANSACTION_TYPES,
   TYPE_LABELS,
+  destinationKindFor,
   normalizeCard,
+  normalizeIban,
   toNumber,
   transactionSchema,
   type TransactionFormValues,
@@ -134,9 +136,24 @@ export function NewTransactionForm() {
         return { method: "cash", amount: payment.amount };
       }
 
-      const card = payment.destinationCard
-        ? normalizeCard(payment.destinationCard)
-        : "";
+      /**
+       * Only the destination this route actually uses is sent.
+       *
+       * The form clears the other one on every change of bank type, so it
+       * should already be blank -- but the API rejects a card on a paya row and
+       * an IBAN on a card-to-card row rather than ignoring them, so selecting
+       * by route here is what makes that impossible rather than unlikely.
+       */
+      const kind = destinationKindFor(payment.bankType);
+
+      const card =
+        kind === "card" && payment.destinationCard
+          ? normalizeCard(payment.destinationCard)
+          : "";
+      const iban =
+        kind === "iban" && payment.destinationIban
+          ? normalizeIban(payment.destinationIban)
+          : "";
 
       return {
         method: "bank",
@@ -145,6 +162,7 @@ export function NewTransactionForm() {
         // honest without a cast.
         bankType: payment.bankType || undefined,
         ...(card ? { destinationCard: card } : {}),
+        ...(iban ? { destinationIban: iban } : {}),
       };
     });
 

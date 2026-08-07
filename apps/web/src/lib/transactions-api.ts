@@ -95,7 +95,10 @@ export interface TransactionPayment {
   method: "cash" | "bank";
   amount: number;
   bankType?: "paya" | "card-to-card" | "bridge";
+  /** card-to-card only. */
   destinationCard?: string;
+  /** paya and bridge only -- they settle to an account, not a card. */
+  destinationIban?: string;
   paidAt: string;
 }
 
@@ -133,7 +136,10 @@ export interface TransactionPaymentInput {
   amount: number;
   /** Required by the API for bank payments, rejected on cash ones. */
   bankType?: "paya" | "card-to-card" | "bridge";
+  /** card-to-card only; the API rejects it on paya and bridge. */
   destinationCard?: string;
+  /** paya and bridge only; the API rejects it on card-to-card. */
+  destinationIban?: string;
 }
 
 /**

@@ -12,8 +12,10 @@ import { formatToman } from "@/lib/format";
 import {
   BANK_TYPES,
   BANK_TYPE_LABELS,
+  IBAN_PREFIX,
   METHOD_LABELS,
   PAYMENT_METHODS,
+  destinationKindFor,
   emptyPayment,
   toNumber,
   type TransactionFormValues,
@@ -88,8 +90,15 @@ function PaymentRow({
   const rowErrors = errors.payments?.[index];
 
   const isBank = method === "bank";
-  // Only card-to-card must carry a card number; paya and bridge settle by IBAN.
-  const cardRequired = isBank && bankType === "card-to-card";
+  /**
+   * One slot in the layout, two different things in it.
+   *
+   * Card-to-card names a card; paya and bridge settle to an account and name a
+   * Sheba. Showing both at once would ask for a number that does not exist for
+   * the route chosen, so the field swaps its name, its placeholder and its
+   * rules together.
+   */
+  const destination = isBank ? destinationKindFor(bankType) : null;
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface-sunken p-4">
@@ -119,6 +128,7 @@ function PaymentRow({
               if (event.target.value === "cash") {
                 setValue(`payments.${index}.bankType`, "");
                 setValue(`payments.${index}.destinationCard`, "");
+                setValue(`payments.${index}.destinationIban`, "");
               }
             },
           })}
@@ -149,7 +159,27 @@ function PaymentRow({
               label="نوع تراکنش بانکی"
               placeholder="انتخاب کنید"
               error={rowErrors?.bankType?.message}
-              {...register(`payments.${index}.bankType`)}
+              {...register(`payments.${index}.bankType`, {
+                /**
+                 * Switching routes clears whichever destination the new one
+                 * does not use. The API rejects a card on a paya row and an
+                 * IBAN on a card-to-card row outright, so a value left behind
+                 * by a change of mind would fail the submit with an error
+                 * pointing at a field no longer on screen.
+                 */
+                onChange: (event) => {
+                  const kind = destinationKindFor(event.target.value);
+                  if (kind !== "card") {
+                    setValue(`payments.${index}.destinationCard`, "");
+                  }
+                  // Re-seed the prefix rather than blanking, so the field is
+                  // ready to take digits the moment it appears.
+                  setValue(
+                    `payments.${index}.destinationIban`,
+                    kind === "iban" ? IBAN_PREFIX : "",
+                  );
+                },
+              })}
             >
               {BANK_TYPES.map((value) => (
                 <option key={value} value={value}>
@@ -158,19 +188,28 @@ function PaymentRow({
               ))}
             </Select>
 
-            <Input
-              label="شماره کارت مقصد"
-              inputMode="numeric"
-              dir="ltr"
-              placeholder="6037991234567890"
-              hint={
-                cardRequired
-                  ? undefined
-                  : "اختیاری — انتقال پایا و پل با شبا انجام می‌شود."
-              }
-              error={rowErrors?.destinationCard?.message}
-              {...register(`payments.${index}.destinationCard`)}
-            />
+            {destination === "iban" ? (
+              <Input
+                label="شماره شبا مقصد"
+                // The field opens with "IR" already in it, so all that is left
+                // to enter is digits -- and a pasted full Sheba still works,
+                // because normalizeIban strips a second prefix.
+                inputMode="numeric"
+                dir="ltr"
+                placeholder="IR854752136958475213658742"
+                error={rowErrors?.destinationIban?.message}
+                {...register(`payments.${index}.destinationIban`)}
+              />
+            ) : (
+              <Input
+                label="شماره کارت مقصد"
+                inputMode="numeric"
+                dir="ltr"
+                placeholder="6037991234567890"
+                error={rowErrors?.destinationCard?.message}
+                {...register(`payments.${index}.destinationCard`)}
+              />
+            )}
           </>
         )}
       </div>

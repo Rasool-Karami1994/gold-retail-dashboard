@@ -102,12 +102,33 @@ const paymentSchema = new Schema(
       },
     },
 
+    /**
+     * Where the money landed, recorded two ways because the two bank routes
+     * identify an account differently.
+     *
+     * A card-to-card transfer names a card; paya and bridge settle to an IBAN
+     * and have no card in the transaction at all. They are separate fields
+     * rather than one loosely-typed column because everything downstream has to
+     * tell them apart -- the invoice prints "کارت ****1234" for one and "شبا"
+     * for the other, and a single column would make every reader sniff the
+     * format to know which it was holding.
+     */
     destinationCard: {
       type: String,
       trim: true,
       // The shop's own receiving card, so this is not customer PAN data. Still
       // stored as the 16 digits only -- no expiry, no CVV, ever.
       match: [/^\d{16}$/, "Destination card must be 16 digits"],
+    },
+
+    destinationIban: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      // Iranian IBAN ("شبا"): the literal IR, then 24 digits, 26 characters in
+      // all. Stored bare -- no spaces, no IR- prefix variants -- so two records
+      // of the same account compare equal.
+      match: [/^IR\d{24}$/, "Destination IBAN must be IR followed by 24 digits"],
     },
 
     paidAt: {
@@ -124,6 +145,7 @@ paymentSchema.pre("validate", function (next) {
   if (this.method === "cash") {
     this.bankType = undefined;
     this.destinationCard = undefined;
+    this.destinationIban = undefined;
   }
   next();
 });
@@ -425,6 +447,7 @@ export interface TransactionMethods {
     amount: number;
     bankType?: BankType;
     destinationCard?: string;
+    destinationIban?: string;
     paidAt?: Date;
   }): Promise<TransactionDocument>;
 }
