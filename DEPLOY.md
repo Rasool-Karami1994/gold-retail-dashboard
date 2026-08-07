@@ -17,18 +17,19 @@ from applying one mode's configuration to another. Pick the row you are in.
 | --- | --- | --- | --- |
 | Command | `pnpm dev` | `docker compose up` | Vercel + Render deploys |
 | Config read from | `apps/api/.env`, `apps/web/.env.local` | root `.env` + `docker-compose.yml` | each host's dashboard |
-| Web ↔ API | `localhost:3000` → `localhost:4100` | `localhost:3000` → `localhost:4100` | `app.example.com` → `api.example.com` |
+| Web ↔ API | `localhost:3000` → `localhost:4100` | `localhost:3000` → `localhost:4100` | browser → Vercel `/api` → Render (proxied) |
 | API ↔ Mongo | `127.0.0.1:27017` | `mongo:27017` (service name) | Atlas connection string |
-| Same site? | Yes — cookie just works | Yes | **No** — needs `SameSite=None` + a shared parent domain |
+| Same site? | Yes — cookie just works | Yes | Yes, *because* of the proxy — see §6 |
 | `NODE_ENV` | `development` | `development` | `production` |
 | SMS | mock, code shown on screen | mock, code in the API log | Kavenegar (see §8) |
 | Invoices | Cloudinary | Cloudinary | Cloudinary |
 
 Three things change *behaviour*, not just values, when `NODE_ENV=production`:
 
-- The session cookie becomes `SameSite=None; Secure`, so both sides must be
-  HTTPS and the cookie stops working over plain http.
-- Mock SMS refuses to run unless explicitly allowed (§9).
+- The session cookie gains `Secure`, so it stops working over plain http.
+  (`SameSite` stays `Lax` in every environment — the §6 proxy is what makes that
+  possible across two hosts.)
+- Mock SMS refuses to run unless explicitly allowed (§8).
 - Cloudinary credentials become mandatory at boot (§7).
 
 The per-app `.env` files and the root `.env` are **not** interchangeable: the
@@ -184,42 +185,89 @@ server {
 The API already sets `trust proxy`, so `X-Forwarded-*` is what makes rate
 limiting and logs see the real client address rather than the proxy's.
 
-### Different hosts (Vercel + Render)
+### Different hosts (Vercel + Render): the /api proxy
 
-Set `ALLOWED_ORIGIN` to the web app's exact origin — scheme, host, port, no
-trailing slash — and `NODE_ENV=production` on the API. That combination makes
-CORS echo the origin back with `Access-Control-Allow-Credentials: true` and
-switches the session cookie to `SameSite=None; Secure`, which is what lets the
-browser attach it to a cross-site request at all. Both sides must be HTTPS;
-`SameSite=None` without `Secure` is rejected outright.
+**The frontend proxies the API instead of the browser calling it directly.**
+`apps/web/next.config.mjs` rewrites `/api/:path*` to `API_PROXY_TARGET`, so
+every request the browser makes goes to the Vercel origin and Vercel forwards
+it to Render.
 
-Vercel gives each branch its own hostname, so preview deployments are separate
-origins. `ALLOWED_ORIGIN` takes a comma-separated list:
+#### The problem it solves
 
-```
-ALLOWED_ORIGIN=https://app.example.com,https://app-git-dev-you.vercel.app
-```
+A cookie is stored against the host that set it. Point the browser straight at
+`g-dash-api.onrender.com` and the session cookie belongs to *that* host —
+`SameSite=None` will make the browser attach it to cross-site XHRs, but the
+Vercel origin still cannot see it.
 
-**That is not sufficient on its own.** CORS governs whether the browser will
-send the cookie *to the API* and hand your code the response. It does nothing
-about which origin can *read* the cookie: the browser files it under the API's
-host, so `app.vercel.app` never sees it.
+`apps/web/src/middleware.ts` reads the cookie directly to decide which page to
+render. It would find nothing, treat every signed-in visitor as signed out, and
+bounce them to the login page in a loop, while the API cheerfully authenticated
+the same person's fetches. A confusing failure: the network tab shows 200s and
+the screen shows a login form.
 
-`apps/web/src/middleware.ts` reads that cookie directly to decide which page to
-render. On unrelated domains it sees nothing, treats every visitor as signed
-out, and bounces them back to the login page in a loop — while the API happily
-authenticates the same user's XHRs.
+The proxy removes the split rather than working around it. One origin, cookie
+first-party, middleware works untouched.
 
-So the two apps need a shared registrable domain:
+#### Configuration
+
+| Where | Variable | Value |
+| --- | --- | --- |
+| Vercel | `API_PROXY_TARGET` | `https://g-dash-api.onrender.com` |
+| Vercel | `NEXT_PUBLIC_API_URL` | `/api` |
+| Vercel | `JWT_SECRET` | same as the API's |
+| Render | `ALLOWED_ORIGIN` | `https://g-dash.vercel.app` |
+| Render | `COOKIE_DOMAIN` | **leave unset** |
+
+Four things about this are easy to get wrong:
+
+- **`API_PROXY_TARGET` has no `NEXT_PUBLIC_` prefix, deliberately.** The browser
+  must never learn the backend's origin; if it does, someone will call it
+  directly and the cookie goes back on a third-party domain.
+- **It is read at build time.** Next compiles rewrites into
+  `.next/routes-manifest.json`, so changing it needs a redeploy, not a restart —
+  the same as any `NEXT_PUBLIC_*` value.
+- **`NEXT_PUBLIC_API_URL` is relative.** Put the backend's absolute origin there
+  and the browser bypasses the proxy, which is exactly the state this avoids.
+  Both `/api` and `/api/v1` work; `src/lib/api.ts` strips either.
+- **Leave `COOKIE_DOMAIN` unset.** The API sets the cookie with no `Domain`, the
+  proxy passes it through, and the browser files it under the Vercel origin.
+  Setting it scopes the cookie to a domain the browser is not on, and the cookie
+  is dropped.
+
+The session cookie is `SameSite=Lax; Secure; HttpOnly` — `Lax` is correct now
+that everything is same-site, and it keeps the browser's built-in CSRF
+protection, which `None` switches off.
+
+CORS stops being load-bearing under this arrangement: requests reach the API
+from Vercel's server, with no `Origin` header, so the allowlist is never
+consulted. Set `ALLOWED_ORIGIN` anyway — it still governs anyone reaching the
+API directly, and it costs nothing.
+
+#### Cost, and the alternative
+
+Every API call takes an extra hop: browser → Vercel edge → Render. On the free
+tier that lands on top of the cold start in §7a rather than replacing it.
+
+**Custom domains on a shared parent remove the hop.** Give both apps a name
+under one registrable domain and the cookie is visible to both with no proxy:
 
 | | |
 | --- | --- |
 | `api.example.com` (Render) | `COOKIE_DOMAIN=.example.com` |
 | `app.example.com` (Vercel) | `ALLOWED_ORIGIN=https://app.example.com` |
 
-Both are custom domains; the free `*.onrender.com` and `*.vercel.app`
-hostnames cannot work this way, because they are different registrable domains
-and the public suffix list forbids a cookie scoped to `.vercel.app`.
+Then unset `API_PROXY_TARGET`, set `NEXT_PUBLIC_API_URL` to
+`https://api.example.com/api/v1`, and the rewrite disappears on the next build.
+The cookie stays `Lax`, because the two are now the same site.
+
+This needs a domain you own; the free `*.onrender.com` and `*.vercel.app`
+hostnames cannot do it, since the public suffix list forbids a cookie scoped to
+`.vercel.app`. **The proxy is what makes the free hostnames workable** — which
+is why it is the documented default.
+
+Vercel gives each branch its own hostname, but preview deployments need no extra
+configuration under the proxy: they proxy to the same backend from their own
+origin, and the cookie follows whichever origin the browser is on.
 
 If you must ship on the free hostnames, the middleware has to stop gating on
 the cookie and let the API's 401s drive redirects from the client instead. No

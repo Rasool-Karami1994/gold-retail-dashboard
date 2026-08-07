@@ -362,17 +362,19 @@ export const env = {
   cookieSecure: isProduction,
 
   /**
-   * `none` in production so the cookie survives a cross-site request.
+   * `lax` everywhere, including production.
    *
-   * The frontend and the API are on different registrable domains there
-   * (Vercel and Render), which makes every API call cross-site; `lax` would
-   * have the browser withhold the cookie and every authenticated request would
-   * answer 401. `none` is only honoured alongside `Secure`, which is why it is
-   * tied to the same NODE_ENV check as `cookieSecure` rather than being its own
-   * switch -- the two cannot legally disagree.
+   * This was `none` in production, for a deployment where the browser called
+   * Render directly and every request was therefore cross-site. It no longer
+   * is: next.config.mjs proxies /api/* from the Vercel origin, so the browser
+   * only ever talks to one host and the cookie is first-party again.
    *
-   * Local dev and the Docker stack stay on `lax`: same-site there, and `none`
-   * over plain http is rejected by the browser outright.
+   * `lax` is the stronger setting and is now sufficient. `none` disables the
+   * browser's CSRF protection wholesale -- the cookie rides along on requests
+   * initiated by any other site -- and there is no longer anything to buy with
+   * it. If the proxy is ever removed in favour of calling the API directly on
+   * another registrable domain, this has to go back to `none` and `Secure`, and
+   * the middleware guard has to be rethought at the same time.
    */
-  cookieSameSite: (isProduction ? "none" : "lax") as "none" | "lax",
+  cookieSameSite: "lax" as const,
 };

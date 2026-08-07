@@ -1,12 +1,20 @@
 /**
- * Base URL of the Express API. Required -- there is deliberately no fallback.
+ * Where the browser reaches the API. Required -- there is deliberately no
+ * fallback.
  *
- * One variable serves three environments (local dev, Docker Compose, and the
- * deployed frontend calling a different domain), so a default here would be
- * wrong in two of them. It would also be wrong SILENTLY: a missing value in
- * production would quietly compile `http://localhost:4000` into the browser
- * bundle, and every visitor's machine would try to call itself. Failing the
- * build is the cheaper outcome.
+ * One variable serves three environments, so a default here would be wrong in
+ * at least two of them. It would also be wrong SILENTLY: a missing value in
+ * production would compile `http://localhost:4000` into the bundle and every
+ * visitor's machine would try to call itself. Failing the build is cheaper.
+ *
+ *   local dev       http://localhost:4100/api/v1
+ *   Docker Compose  http://localhost:4100/api/v1
+ *   production      /api          <- relative, served by the Next proxy
+ *
+ * The production value is relative because next.config.mjs rewrites /api/* to
+ * the backend, making every call same-origin so the session cookie stays
+ * first-party. An absolute backend origin there would bypass the proxy and put
+ * the cookie back on a third-party domain.
  *
  * Read at BUILD time, not at boot -- Next inlines NEXT_PUBLIC_* into the
  * bundle, so changing it means rebuilding and redeploying.
@@ -15,15 +23,25 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 if (!BASE_URL) {
   throw new Error(
-    "NEXT_PUBLIC_API_URL is not set. It must be the API's browser-reachable " +
-      "origin plus /api/v1 -- e.g. http://localhost:4100/api/v1 locally, or " +
-      "https://g-dash-api.onrender.com/api/v1 in production. Set it in " +
-      "apps/web/.env.local, or in the deployment's build environment.",
+    "NEXT_PUBLIC_API_URL is not set. Use the API's browser-reachable origin " +
+      "plus /api/v1 (e.g. http://localhost:4100/api/v1) when calling it " +
+      "directly, or the relative \"/api\" in production, where next.config.mjs " +
+      "proxies it. Set it in apps/web/.env.local, or in the deployment's " +
+      "build environment.",
   );
 }
 
-/** Origin of the API, without the /api/v1 suffix -- auth lives at /api/*. */
-const API_ORIGIN = BASE_URL.replace(/\/api\/v1\/?$/, "");
+/**
+ * Prefix every request is built on, with the API's own mount point removed.
+ *
+ * Callers pass full API paths (`/api/admin/auth/me`), so what is wanted here is
+ * everything *before* that -- an origin, or the empty string when the API is
+ * same-origin. Both `/api` and `/api/v1` are accepted as the trailing part
+ * because the variable is written both ways: `/api/v1` names the versioned
+ * base, `/api` just says "under this origin". Stripping only one of them would
+ * turn the other into `/api/api/...` at every call site.
+ */
+const API_ORIGIN = BASE_URL.replace(/\/api(\/v1)?\/?$/, "");
 
 /**
  * The envelope every paginated list endpoint answers with. Defined here rather
@@ -53,11 +71,10 @@ export class ApiError extends Error {
  * and sent. Cookies ignore port, so in local dev the cookie the API sets on
  * localhost:4100 is sent to localhost:3000 without extra configuration.
  *
- * Across domains it needs both halves to agree: the API must answer with
- * `Access-Control-Allow-Credentials: true` and name this exact origin in
- * `Access-Control-Allow-Origin` (ALLOWED_ORIGIN), and its cookie must carry
- * `SameSite=None; Secure`. Miss either and the browser drops the cookie
- * without surfacing an error the app can catch -- calls simply come back 401.
+ * In production every call is same-origin -- API_ORIGIN is empty and
+ * next.config.mjs proxies /api/* to the backend -- so this is really
+ * "same-origin" behaviour under a broader name. `include` is kept because the
+ * same code runs in all three environments and it is correct in each.
  */
 export async function apiFetch<T>(
   path: string,

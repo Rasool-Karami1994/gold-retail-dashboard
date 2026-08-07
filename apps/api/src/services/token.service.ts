@@ -8,22 +8,17 @@ import { env } from "../config/env.js";
  * Tokens travel in httpOnly cookies rather than a response body, so page
  * JavaScript -- including anything injected via XSS -- cannot read them.
  *
- * SAMESITE IS NOT CONSTANT, AND THE PRODUCTION VALUE COSTS SOMETHING.
+ * `sameSite: "lax"` in every environment, which keeps the browser's built-in
+ * CSRF protection: the cookie is withheld from cross-site POSTs, turning away
+ * the common shapes for free.
  *
- * Locally the two apps share a site, so `lax` applies: the browser withholds
- * the cookie on cross-site POSTs, which turns away the common CSRF shapes for
- * free. In production the frontend and this API sit on different registrable
- * domains, every call is cross-site, and `lax` would withhold the cookie from
- * all of them -- so `env.cookieSameSite` resolves to `none` there.
- *
- * `none` means the browser attaches this cookie to requests from ANY origin,
- * so the free CSRF protection is gone. What still stands in the way is CORS:
- * `credentials: true` with an explicit ALLOWED_ORIGIN allowlist (see app.ts)
- * means a hostile page can *send* a request but cannot read the response, and
- * anything non-simple is stopped at the preflight. That is enough for the
- * JSON-only, allowlisted surface here. It stops being enough the moment this
- * API grows a form-encoded endpoint or the allowlist gets a wildcard, and at
- * that point it needs a real CSRF token.
+ * That is only possible because the browser never talks to this API directly.
+ * In production the frontend proxies /api/* from its own origin
+ * (apps/web/next.config.mjs), so the request arrives here same-site even though
+ * the two apps are deployed to different hosts. Calling this API straight from
+ * another registrable domain would need `none`, which switches that protection
+ * off and leans entirely on the CORS allowlist -- see DEPLOY.md section 6 for
+ * why the proxy was preferred.
  *
  * Admin and customer sessions use separate cookie names. One shared cookie
  * would mean a staff member testing the customer view silently destroys their

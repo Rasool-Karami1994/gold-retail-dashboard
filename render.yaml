@@ -45,8 +45,17 @@ services:
         sync: false
 
       # ---- Cross-origin wiring ---------------------------------------------
-      # The deployed frontend's exact origin. A wrong value here fails silently:
-      # the request succeeds, the browser discards the response.
+      # The deployed frontend's exact origin.
+      #
+      # Largely belt-and-braces under the default deployment: the frontend
+      # proxies /api/* from its own origin (API_PROXY_TARGET on Vercel), so
+      # requests arrive here server-to-server with no Origin header and CORS is
+      # never consulted. It still governs anything calling this API directly.
+      #
+      # Do NOT add COOKIE_DOMAIN alongside it. The session cookie must be scoped
+      # to the frontend's origin, which is what happens with no Domain
+      # attribute; setting one makes the browser drop the cookie. See DEPLOY.md
+      # section 6.
       - key: ALLOWED_ORIGIN
         sync: false
       - key: APP_BASE_URL
