@@ -1,0 +1,24 @@
+# NOT the file that compose uses.
+#
+# apps/web/Dockerfile builds from the REPO ROOT as its context, and Docker only
+# reads the .dockerignore beside the context -- so `docker compose build web`
+# applies /.dockerignore and ignores this one entirely. Add exclusions there.
+#
+# This file exists for a context of apps/web: a future standalone Dockerfile
+# that doesn't need the workspace lockfile, or an image built by a tool that
+# scopes itself to one package. Keep it in step with /.dockerignore.
+
+node_modules
+.next
+out
+dist
+*.tsbuildinfo
+next-env.d.ts
+
+.env
+.env.*
+!.env.example
+
+.git
+Dockerfile
+.dockerignore

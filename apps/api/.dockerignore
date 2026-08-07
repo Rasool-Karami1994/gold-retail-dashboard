@@ -1,0 +1,24 @@
+# NOT the file that compose uses.
+#
+# apps/api/Dockerfile builds from the REPO ROOT as its context, and Docker only
+# reads the .dockerignore beside the context -- so `docker compose build api`
+# applies /.dockerignore and ignores this one entirely. Add exclusions there.
+#
+# This file exists for a context of apps/api: a future standalone Dockerfile
+# that doesn't need the workspace lockfile, or an image built by a tool that
+# scopes itself to one package. Keep it in step with /.dockerignore.
+
+node_modules
+dist
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+
+# Generated invoice PDFs -- customer names, numbers and amounts.
+uploads
+
+.git
+Dockerfile
+.dockerignore

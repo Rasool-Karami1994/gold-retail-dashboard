@@ -11,8 +11,12 @@
     "start": "concurrently -n web,api -c cyan,magenta \"pnpm --filter web start\" \"pnpm --filter api start\"",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm --filter web lint",
-    "db:up": "docker compose up -d",
-    "db:down": "docker compose down"
+    "db:up": "docker compose up -d mongo",
+    "db:down": "docker compose stop mongo",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:seed": "docker compose exec api pnpm --filter api seed:admin"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
