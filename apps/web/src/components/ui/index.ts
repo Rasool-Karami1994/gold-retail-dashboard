@@ -8,6 +8,9 @@ export {
   type ButtonSize,
 } from "./button-styles";
 export { Input, type InputProps } from "./input";
+// Grouped digits while typing, with the amount spelled out underneath. Use it
+// for every Toman field; pass showWords={false} for anything not money.
+export { CurrencyInput, type CurrencyInputProps } from "./currency-input";
 // A generic segmented code field, not a customer-registration detail: the
 // public sign-in and the staff add-customer wizard both enter a code with it.
 export { OtpInput, type OtpInputProps } from "./otp-input";

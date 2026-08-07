@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   COOKIE_NAMES,
+  IS_DEV,
   RETURN_TO_PARAM,
   ROUTES,
   isAdminPath,
+  isDevOnlyPath,
   isPublicPath,
 } from "@/config/routes";
 import { readSession } from "@/lib/session";
@@ -49,6 +51,23 @@ export async function middleware(request: NextRequest) {
     }
     return NextResponse.redirect(url);
   };
+
+  /**
+   * Development-only routes, answered before anything else.
+   *
+   * Ahead of the auth check on purpose: a signed-out visitor should get the
+   * same answer as a signed-in one, because in a production build the route
+   * genuinely does not exist. Bouncing to a login page first would advertise
+   * that there is something behind it.
+   *
+   * Rewritten rather than redirected so the response really is a 404 carrying
+   * the app's own not-found page, which is indistinguishable from a typo.
+   * `IS_DEV` is inlined at build time, so this whole branch is dead code in
+   * development and the gallery is reachable as usual.
+   */
+  if (!IS_DEV && isDevOnlyPath(pathname)) {
+    return NextResponse.rewrite(new URL("/_not-found", request.url));
+  }
 
   if (pathname === "/") {
     if (admin) return redirect(ROUTES.adminHome);

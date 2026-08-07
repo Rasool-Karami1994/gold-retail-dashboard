@@ -18,8 +18,23 @@ export { toNumber };
  * people paste "4,200,000".
  */
 
-function numeric(inner: z.ZodNumber) {
-  return z.preprocess(toNumber, inner);
+/**
+ * A number typed into a text field.
+ *
+ * The runtime behaviour is exactly `preprocess` -- `toNumber` first, then the
+ * numeric rules. Only the static INPUT type is narrowed, from the `unknown`
+ * that `preprocess` infers to the `string` these fields actually hold: every
+ * default is `""` and every writer is an <input>. Left as `unknown`,
+ * `TransactionFormValues` claims not to know, and anything reading a field
+ * value back -- a controlled input, in particular -- has to cast at each site
+ * to say what this says once.
+ */
+function numeric(inner: z.ZodNumber): z.ZodType<number, z.ZodTypeDef, string> {
+  return z.preprocess(toNumber, inner) as unknown as z.ZodType<
+    number,
+    z.ZodTypeDef,
+    string
+  >;
 }
 
 /**

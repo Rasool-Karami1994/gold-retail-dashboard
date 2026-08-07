@@ -3,8 +3,8 @@
 import * as React from "react";
 import {
   Button,
+  CurrencyInput,
   DateRangeFilter,
-  Input,
   Modal,
   formatJalaliRange,
   rangeForPreset,
@@ -140,22 +140,18 @@ export function CustomerFiltersModal({
           </legend>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input
+            <CurrencyInput
               label="از"
-              inputMode="numeric"
-              dir="ltr"
               placeholder="0"
               value={minAmount}
-              onChange={(event) => setMinAmount(event.target.value)}
+              onChange={setMinAmount}
               error={minInvalid ? "عدد معتبر وارد کنید" : undefined}
             />
-            <Input
+            <CurrencyInput
               label="تا"
-              inputMode="numeric"
-              dir="ltr"
               placeholder="بدون سقف"
               value={maxAmount}
-              onChange={(event) => setMaxAmount(event.target.value)}
+              onChange={setMaxAmount}
               error={
                 maxInvalid
                   ? "عدد معتبر وارد کنید"

@@ -1,8 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
-import { Button, Input, Select } from "@/components/ui";
+import {
+  Controller,
+  useFieldArray,
+  useFormContext,
+  useWatch,
+} from "react-hook-form";
+import { Button, CurrencyInput, Input, Select } from "@/components/ui";
 import { formatToman } from "@/lib/format";
 import {
   BANK_TYPES,
@@ -125,13 +130,17 @@ function PaymentRow({
           ))}
         </Select>
 
-        <Input
-          label="مبلغ (تومان)"
-          inputMode="numeric"
-          dir="ltr"
-          placeholder="0"
-          error={rowErrors?.amount?.message}
-          {...register(`payments.${index}.amount`)}
+        <Controller
+          control={control}
+          name={`payments.${index}.amount`}
+          render={({ field }) => (
+            <CurrencyInput
+              label="مبلغ (تومان)"
+              placeholder="0"
+              error={rowErrors?.amount?.message}
+              {...field}
+            />
+          )}
         />
 
         {isBank && (

@@ -2,14 +2,20 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { FormProvider, useForm, useFormContext, useWatch } from "react-hook-form";
+import {
+  Controller,
+  FormProvider,
+  useForm,
+  useFormContext,
+  useWatch,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
   CardContent,
-  Input,
+  CurrencyInput,
   Select,
   buttonStyles,
 } from "@/components/ui";
@@ -199,22 +205,35 @@ export function NewTransactionForm() {
                     ))}
                   </Select>
 
-                  <Input
-                    label="وزن (گرم)"
-                    inputMode="decimal"
-                    dir="ltr"
-                    placeholder="0"
-                    error={errors.goldWeightGrams?.message}
-                    {...register("goldWeightGrams")}
+                  {/* Grams get the grouping but not the words: "۱ میلیون گرم"
+                      is not a sentence anyone would say, and the decimal point
+                      matters here in a way it does not for Toman. */}
+                  <Controller
+                    control={control}
+                    name="goldWeightGrams"
+                    render={({ field }) => (
+                      <CurrencyInput
+                        label="وزن (گرم)"
+                        placeholder="0"
+                        decimal
+                        showWords={false}
+                        error={errors.goldWeightGrams?.message}
+                        {...field}
+                      />
+                    )}
                   />
 
-                  <Input
-                    label="قیمت روز طلا (تومان بر گرم)"
-                    inputMode="numeric"
-                    dir="ltr"
-                    placeholder="0"
-                    error={errors.dailyGoldPricePerGram?.message}
-                    {...register("dailyGoldPricePerGram")}
+                  <Controller
+                    control={control}
+                    name="dailyGoldPricePerGram"
+                    render={({ field }) => (
+                      <CurrencyInput
+                        label="قیمت روز طلا (تومان بر گرم)"
+                        placeholder="0"
+                        error={errors.dailyGoldPricePerGram?.message}
+                        {...field}
+                      />
+                    )}
                   />
                 </div>
 

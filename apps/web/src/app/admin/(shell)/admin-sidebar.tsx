@@ -1,6 +1,7 @@
 "use client";
 
 import { Sidebar, sidebarWideOnly, type SidebarItem } from "@/components/ui";
+import { IS_DEV, ROUTES } from "@/config/routes";
 import { cn } from "@/lib/cn";
 import { useDisplayName } from "@/stores/auth.store";
 import { useUiStore } from "@/stores/ui.store";
@@ -61,12 +62,27 @@ const items: SidebarItem[] = [
     label: "ثبت معامله",
     icon: <Icon><path d="M12 5v14M5 12h14" /></Icon>,
   },
-  {
-    href: "/admin/design",
-    label: "کتابخانه",
-    icon: <Icon><path d="M12 19l7-7 3 3-7 7-3-3Z" /><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5Z" /><path d="M2 2l7.586 7.586" /><circle cx="11" cy="11" r="2" /></Icon>,
-  },
 ];
+
+/**
+ * The component gallery, appended only while developing.
+ *
+ * The link is hidden AND the route is blocked in middleware -- hiding alone
+ * would leave /admin/design reachable by typing it. `IS_DEV` is a build-time
+ * constant, so in a production bundle this spreads an empty array and the item
+ * is not merely hidden but absent from the shipped JavaScript.
+ */
+const devItems: SidebarItem[] = IS_DEV
+  ? [
+      {
+        href: ROUTES.adminDesign,
+        label: "کتابخانه",
+        icon: <Icon><path d="M12 19l7-7 3 3-7 7-3-3Z" /><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5Z" /><path d="M2 2l7.586 7.586" /><circle cx="11" cy="11" r="2" /></Icon>,
+      },
+    ]
+  : [];
+
+const navItems: SidebarItem[] = [...items, ...devItems];
 
 export function AdminSidebar() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
@@ -76,7 +92,7 @@ export function AdminSidebar() {
 
   return (
     <Sidebar
-      items={items}
+      items={navItems}
       header={
         <div className="flex flex-col">
           <span className="text-sm font-bold text-fg">گالری طلای روزبه</span>

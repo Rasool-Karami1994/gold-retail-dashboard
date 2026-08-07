@@ -43,6 +43,13 @@ export const ROUTES = {
   adminLogin: "/admin/login",
   /** Where a signed-in admin lands. */
   adminHome: "/admin/overview",
+  /**
+   * The component gallery. DEVELOPMENT ONLY -- see DEV_ONLY_PATHS.
+   *
+   * Named here rather than written inline in the sidebar so the nav link and
+   * the middleware guard cannot disagree about which path is being hidden.
+   */
+  adminDesign: "/admin/design",
 } as const;
 
 /**
@@ -67,6 +74,29 @@ export const PUBLIC_PATHS: readonly string[] = [
  * redirect, so the login page can send the user back afterwards.
  */
 export const RETURN_TO_PARAM = "next";
+
+/**
+ * Routes that exist only while developing, and must not be reachable in a
+ * deployed build even by typing the URL.
+ *
+ * The component gallery is internal tooling: it renders every primitive with
+ * fixture data, which is useful at a keyboard and is noise -- and a small
+ * information leak about the app's internals -- on a live deployment.
+ *
+ * `IS_DEV` is a build-time constant. Next substitutes `process.env.NODE_ENV`
+ * while compiling, in the middleware bundle as well as the client one, so the
+ * production build has the check resolved to `false` rather than reading an
+ * environment that the Edge runtime would not expose anyway.
+ */
+export const IS_DEV = process.env.NODE_ENV === "development";
+
+const DEV_ONLY_PATHS: readonly string[] = [ROUTES.adminDesign];
+
+export function isDevOnlyPath(pathname: string): boolean {
+  return DEV_ONLY_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
+}
 
 export function isAdminPath(pathname: string): boolean {
   return pathname === ROUTES.adminRoot || pathname.startsWith(`${ROUTES.adminRoot}/`);
