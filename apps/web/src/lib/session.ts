@@ -70,7 +70,6 @@ export async function readSession(
   }
 }
 
-/** Convenience wrapper for the cookie name belonging to `role`. */
 export function cookieNameFor(role: Role): string {
   return COOKIE_NAMES[role];
 }

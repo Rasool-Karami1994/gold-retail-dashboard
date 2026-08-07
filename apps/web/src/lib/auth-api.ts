@@ -13,6 +13,17 @@ export interface AdminLoginInput {
 
 export interface AdminLoginResponse {
   admin: { id: string; username: string; role: "admin" };
+  /**
+   * True when the API is not sending real SMS. Only `/me` sets it; the login
+   * response omits it, which is why it is optional.
+   */
+  smsMock?: boolean;
+  /**
+   * `smsMock` AND production -- one-time codes are being returned in API
+   * responses on a live deployment. Separate from `smsMock` because mocking is
+   * unremarkable in development and an open door in production.
+   */
+  insecureOtp?: boolean;
 }
 
 /**
@@ -42,8 +53,6 @@ export function fetchAdminMe() {
 /** Query key for the session lookup, shared so nothing invalidates a typo. */
 export const adminMeKey = ["admin", "me"] as const;
 
-/* ---- Customer sign-in ---------------------------------------------------- */
-
 export interface RequestLoginOtpResult {
   /** Normalised by the API. Use THIS to verify, not the raw input. */
   mobile: string;
@@ -51,6 +60,12 @@ export interface RequestLoginOtpResult {
   expiresAt: string;
   /** Seconds until the code dies, for the resend countdown. */
   expiresInSeconds: number;
+  /**
+   * Present only when the API is mocking SMS -- nothing was delivered, so this
+   * is the only way to finish the flow. Its ABSENCE is what tells the UI a real
+   * message went out, so never default it.
+   */
+  devOtpCode?: string;
 }
 
 /**
@@ -144,7 +159,6 @@ export function toCustomerAuthUser(me: CustomerMe): AuthUser {
   };
 }
 
-/** Shapes the login response into the store's user. */
 export function toAuthUser(response: AdminLoginResponse): AuthUser {
   return {
     id: response.admin.id,

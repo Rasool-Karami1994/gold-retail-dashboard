@@ -1,19 +1,132 @@
-# Local MongoDB for development. The apps themselves run on the host via
-# `pnpm dev` -- this file exists only so you don't have to install Mongo.
+# The whole stack: Mongo, the Express API and the Next.js app.
+#
+#   docker compose up --build        dev  -- docker-compose.override.yml is
+#                                    picked up automatically and swaps both apps
+#                                    onto bind-mounted source with hot reload
+#   docker compose -f docker-compose.yml up --build
+#                                    production images, no source mounts
+#
+# CONFIGURATION COMES FROM ONE FILE: .env at the repo root. Copy .env.example to
+# .env before the first run. The per-app apps/api/.env and apps/web/.env.local
+# are for running on the host with `pnpm dev` and are NOT read here -- they
+# point at 127.0.0.1, which inside a container is the container itself.
+#
+# NAMES, NOT LOCALHOST. Containers reach each other over the compose network by
+# service name: the API talks to `mongo:27017`, and anything server-side in web
+# would talk to `api:4100`. `localhost` inside a container is that container.
+
 services:
   mongo:
     image: mongo:7
     container_name: g-dash-mongo
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      # Exposed so host tooling (mongosh, Compass, `pnpm dev` against the
+      # container) can reach it. Drop this line to keep it stack-internal.
+      - "${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo-data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      # `api` waits on this. Without it the API starts first, fails to connect,
+      # and you debug a config problem that is really a race.
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
+
+  api:
+    build:
+      # The repo root, not apps/api -- pnpm needs the workspace lockfile. See
+      # the header of apps/api/Dockerfile.
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    image: g-dash-api
+    container_name: g-dash-api
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    env_file:
+      # required: false so that `pnpm db:up` (which starts only mongo) still
+      # works on a checkout with no root .env -- compose validates env_file for
+      # every service at load time, not just the ones being started. A genuinely
+      # missing .env is caught where it reads better anyway: config/env.ts
+      # refuses to boot and names the variable.
+      - path: .env
+        required: false
+    environment:
+      # These four are decided by the container topology, so they are set here
+      # rather than in .env -- `environment:` wins over `env_file:`, and a value
+      # copied into .env by hand would be silently ignored.
+      #
+      # The service name is the whole point: `localhost` here is the API
+      # container, which runs no database.
+      MONGO_URI: mongodb://mongo:27017/g-dash
+      PORT: 4100
+      # All three are read by a BROWSER or a PHONE, never by another container,
+      # so they must be host-reachable. ALLOWED_ORIGIN is the origin the web app
+      # is served from and the one CORS echoes back; APP_BASE_URL is the same
+      # value under the name the API uses for it; PUBLIC_API_URL is the origin
+      # of the invoice link sent by SMS.
+      ALLOWED_ORIGIN: http://localhost:${WEB_PORT:-3000}
+      APP_BASE_URL: http://localhost:${WEB_PORT:-3000}
+      PUBLIC_API_URL: http://localhost:${API_PORT:-4100}
+    ports:
+      - "${API_PORT:-4100}:4100"
+    # No volume for invoices any more: they are uploaded to Cloudinary rather
+    # than written to disk, so there is nothing local to keep. Set the
+    # CLOUDINARY_* variables in .env to exercise the invoice flow in the stack.
+    healthcheck:
+      # /api/v1/health answers 503 while Mongo is down, so this tracks the
+      # dependency and not just the process. busybox wget, no curl in the image.
+      test:
+        ["CMD", "wget", "--quiet", "--tries=1", "--spider",
+         "http://127.0.0.1:4100/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runtime
+      args:
+        # BUILD args, not runtime env. Next inlines every NEXT_PUBLIC_* value
+        # into the browser bundle while compiling, so changing one means
+        # rebuilding the image -- restarting the container leaves the old value
+        # in the JavaScript the browser downloads. (JWT_SECRET is the opposite
+        # and stays a runtime variable; see apps/web/Dockerfile.)
+        #
+        # NEXT_PUBLIC_API_URL is fetched BY THE BROWSER, from the host, so it is
+        # http://localhost:<API_PORT> and NOT http://api:4100. A service name
+        # resolves only inside the compose network; the browser is outside it.
+        NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-4100}/api/v1
+        NEXT_PUBLIC_SITE_URL: http://localhost:${WEB_PORT:-3000}
+    image: g-dash-web
+    container_name: g-dash-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    env_file:
+      # See the note on the api service.
+      - path: .env
+        required: false
+    environment:
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      # For SERVER-side calls out of this container, which is the other half of
+      # the split above: nothing reads it today (src/lib/api.ts runs in the
+      # browser only), but a server component or route handler that starts
+      # calling the API must use the service name, not NEXT_PUBLIC_API_URL --
+      # from in here, localhost:4100 is the web container.
+      API_INTERNAL_URL: http://api:4100/api/v1
+    ports:
+      - "${WEB_PORT:-3000}:3000"
 
 volumes:
   mongo-data:

@@ -1,0 +1,76 @@
+# Render blueprint for the API. The web app goes to Vercel -- see vercel.json.
+#
+# Committed as documentation as much as automation: even if you click the
+# service together in the dashboard, the build and start commands below are the
+# ones that work for this workspace, and the env block is the checklist of what
+# has to be set.
+#
+# BUILD FROM THE REPO ROOT, not apps/api. pnpm needs pnpm-lock.yaml and
+# pnpm-workspace.yaml, and neither is reachable from inside the package.
+
+services:
+  - type: web
+    name: g-dash-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    # Node 20 to match the Docker images and the engines the workspace is
+    # developed against.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --filter api... && pnpm --filter api build
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+
+      # Render injects PORT and the process must bind it. server.ts already
+      # listens on env.PORT, so this only has to not disagree with Render.
+      - key: PORT
+        value: "10000"
+
+      # ---- Secrets: set these in the dashboard, never in this file ----------
+      # sync: false means "prompt me, don't store a value in the repo".
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+      # ---- Cross-origin wiring ---------------------------------------------
+      # The deployed frontend's exact origin. A wrong value here fails silently:
+      # the request succeeds, the browser discards the response.
+      - key: ALLOWED_ORIGIN
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      # This API's own public origin, used to build absolute links.
+      - key: PUBLIC_API_URL
+        sync: false
+
+      # ---- SMS --------------------------------------------------------------
+      # Leave both unset and the API REFUSES TO BOOT, on purpose: customer
+      # sign-in is OTP-only, so a missing gateway means every login fails.
+      # See the SMS section in DEPLOY.md for the two ways forward.
+      - key: SMS_PROVIDER
+        sync: false
+      - key: KAVENEGAR_API_KEY
+        sync: false
+      - key: KAVENEGAR_SENDER
+        sync: false
+
+      # ---- Chromium ---------------------------------------------------------
+      # Invoices are rendered by puppeteer-core, which drives an existing
+      # browser rather than downloading one. Render's Node runtime does not ship
+      # Chrome, so it has to be installed during the build and pointed at here.
+      # DEPLOY.md covers this -- it is the one part of the API that does not
+      # work on a stock Render Node service.
+      - key: PUPPETEER_EXECUTABLE_PATH
+        sync: false

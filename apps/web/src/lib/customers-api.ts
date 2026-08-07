@@ -17,8 +17,6 @@ import { normalizeMobile } from "./mobile";
  * `createCustomer` in apps/api/src/services/customer.service.ts.
  */
 
-/* ---- List ---------------------------------------------------------------- */
-
 export interface CustomerRow {
   id: string;
   firstName: string;
@@ -83,8 +81,6 @@ export async function findCustomerByMobile(
 
   return items.find((item) => normalizeMobile(item.mobile) === normalized) ?? null;
 }
-
-/* ---- Detail -------------------------------------------------------------- */
 
 export interface CustomerDetailCustomer {
   id: string;
@@ -155,8 +151,6 @@ export function fetchCustomerDetail(
   );
 }
 
-/* ---- Registration -------------------------------------------------------- */
-
 export interface RequestOtpResult {
   /** Normalised by the API. Use THIS for the later calls, not the raw input. */
   mobile: string;
@@ -164,6 +158,12 @@ export interface RequestOtpResult {
   expiresAt: string;
   /** Seconds until the code dies, for the resend countdown. */
   expiresInSeconds: number;
+  /**
+   * Present only when the API is mocking SMS -- nothing was delivered, so this
+   * is the only way to finish registering someone locally. Its ABSENCE means a
+   * real message went out, so never default it.
+   */
+  devOtpCode?: string;
 }
 
 /**
@@ -214,8 +214,6 @@ export function createCustomer(input: CreateCustomerInput) {
     body: JSON.stringify(input),
   });
 }
-
-/* ---- Query keys ---------------------------------------------------------- */
 
 export const customerKeys = {
   all: ["customers"] as const,

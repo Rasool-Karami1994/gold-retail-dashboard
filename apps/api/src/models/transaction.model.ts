@@ -71,10 +71,6 @@ const SETTLEMENT_TOLERANCE = 0.5;
 /** Invoice dates follow the shop's wall clock, not the server's UTC day. */
 const INVOICE_TIMEZONE = "Asia/Tehran";
 
-/* -------------------------------------------------------------------------- */
-/* Payments                                                                    */
-/* -------------------------------------------------------------------------- */
-
 /**
  * One instalment against the parent transaction. Recorded as a subdocument
  * rather than its own collection because a payment has no life of its own --
@@ -131,10 +127,6 @@ paymentSchema.pre("validate", function (next) {
   }
   next();
 });
-
-/* -------------------------------------------------------------------------- */
-/* Transaction                                                                 */
-/* -------------------------------------------------------------------------- */
 
 const transactionSchema = new Schema(
   {
@@ -242,8 +234,6 @@ const transactionSchema = new Schema(
   },
 );
 
-/* ---- Virtuals ------------------------------------------------------------ */
-
 /** Sum of every recorded instalment. */
 transactionSchema.virtual("paidAmount").get(function () {
   return (this.payments ?? []).reduce(
@@ -278,8 +268,6 @@ transactionSchema.virtual("balanceDirection").get(function () {
   if (remaining <= SETTLEMENT_TOLERANCE) return "none";
   return this.type === "sell" ? "customer-owes-shop" : "shop-owes-customer";
 });
-
-/* ---- Aggregation equivalents --------------------------------------------- */
 
 /**
  * The virtuals above exist only on a hydrated document, so an aggregation
@@ -336,8 +324,6 @@ export function withRemainingFields() {
   ];
 }
 
-/* ---- Hooks --------------------------------------------------------------- */
-
 transactionSchema.pre("validate", async function (next) {
   // Recompute the total whenever either input moves. Rounded to whole Toman.
   if (
@@ -384,8 +370,6 @@ async function generateInvoiceNumber(when = new Date()): Promise<string> {
   return `INV-${stamp}-${String(seq).padStart(4, "0")}`;
 }
 
-/* ---- Indexes ------------------------------------------------------------- */
-
 // `invoiceNumber` is already indexed by `unique: true` on the field.
 
 // Customer statement: every invoice for one customer, newest first.
@@ -426,8 +410,6 @@ transactionSchema.index({ goldType: 1, createdAt: -1 });
  * rewrite it whenever a customer changes their number.
  */
 
-/* ---- Types --------------------------------------------------------------- */
-
 export type Payment = InferSchemaType<typeof paymentSchema>;
 export type Transaction = InferSchemaType<typeof transactionSchema>;
 
@@ -465,8 +447,6 @@ export interface TransactionModelType
     net: number;
   }>;
 }
-
-/* ---- Methods and statics ------------------------------------------------- */
 
 /**
  * Records an instalment and re-derives `status`.

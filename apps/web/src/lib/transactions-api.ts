@@ -90,8 +90,6 @@ export function fetchTransactions(
   );
 }
 
-/* ---- Detail -------------------------------------------------------------- */
-
 /** A recorded instalment, as it comes back on a transaction. */
 export interface TransactionPayment {
   method: "cash" | "bank";
@@ -112,6 +110,16 @@ export interface TransactionDetail extends TransactionRow {
   invoicePdfUrl: string | null;
   createdBy?: { id: string; username: string; role: string } | null;
   updatedAt: string;
+  /**
+   * The SMS the customer would have received, present only when the API is
+   * mocking SMS and the PDF has rendered.
+   *
+   * It arrives here rather than on create because the render is backgrounded --
+   * at create time there is no URL yet, so there is no link to hand over. The
+   * success screen already polls this endpoint for `invoicePdfUrl`, so the two
+   * land together.
+   */
+  devInvoiceMessage?: string;
 }
 
 export function fetchTransaction(id: string) {
@@ -119,8 +127,6 @@ export function fetchTransaction(id: string) {
     `/api/admin/transactions/${encodeURIComponent(id)}`,
   );
 }
-
-/* ---- Create -------------------------------------------------------------- */
 
 export interface TransactionPaymentInput {
   method: "cash" | "bank";
@@ -167,8 +173,6 @@ export function regenerateInvoice(id: string) {
     { method: "POST" },
   );
 }
-
-/* ---- The signed-in customer's own transactions --------------------------- */
 
 /**
  * A different endpoint, not a filtered version of the admin one.
@@ -232,8 +236,6 @@ export function fetchMyTransaction(id: string) {
     `/api/customer/transactions/${encodeURIComponent(id)}`,
   );
 }
-
-/* ---- Query keys ---------------------------------------------------------- */
 
 export const transactionKeys = {
   all: ["transactions"] as const,

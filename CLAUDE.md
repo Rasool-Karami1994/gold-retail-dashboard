@@ -145,6 +145,16 @@ pnpm --filter api seed:admin
 - Web components use logical Tailwind utilities (`ps-*`, `end-*`), never
   left/right, and only semantic design tokens — no default palette classes like
   `bg-slate-900`.
+- **SMS is mocked unless a Kavenegar key is present.** `env.SMS_PROVIDER`
+  resolves to `mock` when `KAVENEGAR_API_KEY` is unset (`console` is a legacy
+  alias); the mock logs the message and returns its text. `devOtpCode` and
+  `devInvoiceMessage` are derived from that returned text, **not** from an env
+  read at the call site — so a real gateway cannot emit them however the
+  environment is configured. The mock refuses to load under
+  `NODE_ENV=production`, because it puts OTP codes in API responses.
+- **A figure with no axis to vary over gets `<StatCard>`, not `<ChartCard>`.**
+  A chart of one value draws a bar that always fills its plot area, so it says
+  nothing the number does not — the debt/credit sections were exactly that.
 - **A failed READ gets `<ErrorState>` where the content would have been; a
   failed WRITE gets a toast.** A toast is for something that happened beside
   what you are looking at — if the region itself is empty, the message belongs
@@ -161,6 +171,21 @@ pnpm --filter api seed:admin
   the logical properties, which is easy to get backwards on anything positioned
   rather than laid out — the mobile drawer first shipped pinned to `end-0` and
   slid in from the wrong side.
+- **A popover opened inside `<Modal>` must render INLINE, never through a
+  portal.** The modal is a native `<dialog>` opened with `showModal()`, which
+  puts it in the browser's **top layer** — above every normal stacking context
+  regardless of z-index. A popover portaled to `document.body` lands *behind*
+  it and no z-index can rescue it. Staying in the dialog's subtree is what keeps
+  it on top. For the same reason neither the panel nor the dialog may clip:
+  `overflow-hidden` on the panel plus the UA's `overflow: auto` on `<dialog>`
+  are what made the date picker unreachable in the transactions filter.
+- **Never give the Recharts `<YAxis>` a numeric `width`.** It reserves that band
+  on whichever side `orientation` puts it, and `rtlAxisProps.y` puts it on the
+  RIGHT — so every pixel the labels don't use becomes a hole between them and
+  the edge of the card. Persian numerals are narrow (`۸` is ~7px), so a 72px
+  reservation was ~90% dead space. `width: "auto"` in `chart-theme.ts` sizes the
+  band to the widest tick; the same over-reservation in LTR just reads as
+  gutter on the left, which is why this only shows up here.
 - **User-facing strings are Persian.** Map API errors by HTTP status rather than
   forwarding `error.message`; the API answers in English.
 - **Send dates to the API with `toApiDate()`** (`lib/jalali.ts`), never

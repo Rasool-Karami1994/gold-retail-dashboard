@@ -25,8 +25,6 @@ function rangeQuery(range: DateRange, keys: [string, string]): string {
   return params.toString();
 }
 
-/* ---- Volume and amount --------------------------------------------------- */
-
 export interface VolumeStats {
   soldGrams: number;
   boughtGrams: number;
@@ -48,8 +46,6 @@ export function fetchAmount(range: DateRange) {
     `/api/admin/stats/amount?${rangeQuery(range, ["from", "to"])}`,
   );
 }
-
-/* ---- Outstanding balances ------------------------------------------------ */
 
 /**
  * These two take no range. They are running totals as of now, not flow through
@@ -78,8 +74,6 @@ export function fetchDebtCreditAmount() {
 export function fetchDebtCreditGrams() {
   return apiFetch<DebtCreditGrams>("/api/admin/stats/debt-credit-grams");
 }
-
-/* ---- Open transactions --------------------------------------------------- */
 
 export interface OpenTransactionRow {
   id: string;
@@ -116,8 +110,6 @@ export function fetchOpenTransactions({
     `/api/admin/stats/open-transactions?${params.toString()}`,
   );
 }
-
-/* ---- Query keys ---------------------------------------------------------- */
 
 /**
  * Keyed by the range's endpoints rather than the whole object -- a `DateRange`

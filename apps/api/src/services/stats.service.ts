@@ -48,10 +48,6 @@ function rangeMatch({ from, to }: DateRange) {
   return { $match: createdAt ? { createdAt } : {} };
 }
 
-/* -------------------------------------------------------------------------- */
-/* Flow: what moved during the range                                           */
-/* -------------------------------------------------------------------------- */
-
 export interface VolumeStats {
   soldGrams: number;
   boughtGrams: number;
@@ -90,10 +86,6 @@ export async function getAmount(range: DateRange): Promise<AmountStats> {
 
   return row ?? { soldAmount: 0, boughtAmount: 0 };
 }
-
-/* -------------------------------------------------------------------------- */
-/* Stock: what is outstanding as of now                                        */
-/* -------------------------------------------------------------------------- */
 
 export interface DebtCreditAmount {
   /** Owed BY customers TO the shop -- unpaid 'sell' invoices. A receivable. */
@@ -176,10 +168,6 @@ export async function getDebtCreditGrams(): Promise<DebtCreditGrams> {
     ),
   };
 }
-
-/* -------------------------------------------------------------------------- */
-/* Open transactions                                                           */
-/* -------------------------------------------------------------------------- */
 
 export interface OpenTransactionsOptions extends DateRange {
   page: number;

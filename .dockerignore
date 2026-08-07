@@ -1,0 +1,63 @@
+# THIS IS THE FILE THAT GOVERNS EVERY COMPOSE BUILD.
+#
+# Both Dockerfiles take the repo root as their build context (they need
+# pnpm-lock.yaml and pnpm-workspace.yaml), and Docker reads the .dockerignore
+# beside the *context*, never one inside a subdirectory. apps/api/.dockerignore
+# and apps/web/.dockerignore mirror these rules for anyone building an app on
+# its own, but they are not what `docker compose build` consults -- if you add
+# an exclusion, add it here.
+
+# Installed inside the image from the lockfile. Copying the host's tree in would
+# be slower, larger, and wrong: pnpm's store is full of absolute symlinks that
+# point at paths which don't exist in the container.
+node_modules
+**/node_modules
+
+# Build output. Regenerated in the build stage; a stale copy from the host is
+# how you end up debugging code that isn't in the image.
+.next
+**/.next
+dist
+**/dist
+out
+**/out
+build
+**/build
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Secrets. Everything the containers need arrives through env_file and
+# `environment:` at run time -- baking a .env into an image freezes it into the
+# layer history. .env.example is documentation and harmless, but there is no
+# reason for the build to see it either.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Generated invoice PDFs. They carry customer names, numbers and amounts, and
+# the container keeps them on a named volume instead.
+apps/api/uploads
+
+.git
+.gitignore
+.github
+
+# Editor, agent and tooling scratch.
+.claude
+.vscode
+.idea
+.playwright-mcp
+.DS_Store
+
+# Not inputs to a build.
+README.md
+DEPLOY.md
+CLAUDE.md
+design-reference
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile
+**/Dockerfile
+.dockerignore
+**/.dockerignore

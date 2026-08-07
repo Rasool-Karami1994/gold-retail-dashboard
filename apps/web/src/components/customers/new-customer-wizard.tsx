@@ -16,6 +16,7 @@ import {
 } from "@/lib/customers-api";
 import { formatNumber } from "@/lib/format";
 import { isValidMobile, normalizeMobile } from "@/lib/mobile";
+import { announceOtpSent } from "@/lib/otp-toast";
 import { Stepper } from "./stepper";
 
 /**
@@ -72,8 +73,6 @@ const detailsSchema = z.object({
 });
 
 type DetailsValues = z.infer<typeof detailsSchema>;
-
-/* ---- Error messages ------------------------------------------------------ */
 
 /**
  * Mapped on HTTP status, never on `error.message`: the API answers in English,
@@ -146,8 +145,6 @@ function messageForCreate(error: unknown): string {
   }
 }
 
-/* ---- Wizard -------------------------------------------------------------- */
-
 export interface NewCustomerWizardProps {
   /** Prefills the mobile, for when the caller already knows what was typed. */
   initialMobile?: string;
@@ -216,6 +213,10 @@ export function NewCustomerWizard({
       confirm.reset();
       setSecondsLeft(result.expiresInSeconds);
       setStep(1);
+      // Shows the code itself when the API is mocking SMS. This wizard is used
+      // both on /admin/customers/new and inline in the new-transaction form, so
+      // both get it from here.
+      announceOtpSent(result.devOtpCode);
     },
   });
 

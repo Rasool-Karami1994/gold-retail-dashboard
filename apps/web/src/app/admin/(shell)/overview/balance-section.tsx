@@ -2,9 +2,7 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bar, BarChart, Tooltip, XAxis, YAxis } from "recharts";
-import { Button, ChartCard } from "@/components/ui";
-import { chartColors, tooltipProps } from "@/lib/chart-theme";
+import { Button, StatCard } from "@/components/ui";
 import { formatGrams, formatToman } from "@/lib/format";
 import {
   fetchDebtCreditAmount,
@@ -24,6 +22,11 @@ import { OpenTransactionsModal } from "./open-transactions-modal";
  * year is still owed today, and filtering it out because it falls outside "this
  * month" would understate the balance. The API refuses a range on these two
  * endpoints for the same reason.
+ *
+ * WHICH IS ALSO WHY THESE ARE StatCards, NOT CHARTS. A figure with no axis to
+ * vary over has nothing to plot: the single bar these used to draw always
+ * filled its plot area, so it carried no information the number above it did
+ * not already give, and cost a chart's height to say so.
  */
 
 /** Customers owe the shop -- a receivable. */
@@ -61,69 +64,36 @@ export function BalanceSection({ unit }: { unit: "amount" | "grams" }) {
   const format = unit === "amount" ? formatToman : formatGrams;
   const unitLabel = unit === "amount" ? "تومان" : "گرم";
 
-  /**
-   * THE REASON BOTH CARDS SHARE A SCALE.
-   *
-   * A chart with one bar auto-scales its axis to that bar, so the bar always
-   * fills the plot area. Two independent single-bar cards would therefore
-   * render identical full-width bars whether the figures were 13M and 16M or
-   * 13M and 500. The picture would contradict the numbers printed above it.
-   *
-   * Pinning both to the larger of the two makes their lengths mean something:
-   * the shorter bar is visibly shorter, in proportion.
-   */
-  const domainMax = Math.max(debt, credit, 1);
-
-  const empty = query.isSuccess && debt === 0 && credit === 0;
-
   return (
     <section className="flex flex-col gap-4">
-      <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard
+      {/* Side by side from `sm`: the two are a pair -- one direction of the
+          ledger each -- and reading them against each other is the point. */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatCard
           title="بدهی مشتریان به فروشگاه"
           description={`فاکتورهای فروش تسویه‌نشده (${unitLabel})`}
-          showFilter={false}
-          actions={
-            <Figure value={debt} format={format} color={DEBT_COLOR} loading={query.isPending} />
-          }
+          value={debt}
+          format={format}
+          unit={unitLabel}
+          tone="danger"
+          icon={<ArrowInIcon />}
           loading={query.isPending}
-          empty={empty}
-          emptyMessage="بدهی تسویه‌نشده‌ای وجود ندارد."
           error={query.isError}
           onRetry={() => query.refetch()}
-          height={120}
-        >
-          <SingleBar
-            value={debt}
-            max={domainMax}
-            color={DEBT_COLOR}
-            format={format}
-            unitLabel={unitLabel}
-          />
-        </ChartCard>
+        />
 
-        <ChartCard
+        <StatCard
           title="بدهی فروشگاه به مشتریان"
           description={`فاکتورهای خرید تسویه‌نشده (${unitLabel})`}
-          showFilter={false}
-          actions={
-            <Figure value={credit} format={format} color={CREDIT_COLOR} loading={query.isPending} />
-          }
+          value={credit}
+          format={format}
+          unit={unitLabel}
+          tone="warning"
+          icon={<ArrowOutIcon />}
           loading={query.isPending}
-          empty={empty}
-          emptyMessage="بدهی تسویه‌نشده‌ای وجود ندارد."
           error={query.isError}
           onRetry={() => query.refetch()}
-          height={120}
-        >
-          <SingleBar
-            value={credit}
-            max={domainMax}
-            color={CREDIT_COLOR}
-            format={format}
-            unitLabel={unitLabel}
-          />
-        </ChartCard>
+        />
       </div>
 
       <div className="flex items-center justify-between gap-4">
@@ -149,65 +119,42 @@ export function BalanceSection({ unit }: { unit: "amount" | "grams" }) {
   );
 }
 
-/** The headline number, in the card header where a KPI belongs. */
-function Figure({
-  value,
-  format,
-  color,
-  loading,
-}: {
-  value: number;
-  format: (n: number) => string;
-  color: string;
-  loading: boolean;
-}) {
-  if (loading) {
-    return <span className="h-7 w-28 animate-pulse rounded bg-surface-raised" />;
-  }
+/**
+ * Direction icons, standing in for the colour a chart legend used to carry.
+ *
+ * Into the shop for money owed to it, out of the shop for money it owes -- the
+ * arrow says which way the debt points without relying on colour alone.
+ */
+function ArrowInIcon() {
   return (
-    <span className="text-xl font-bold tabular-nums" style={{ color }}>
-      {format(value)}
-    </span>
+    <Icon>
+      <path d="M12 19V5m0 0-6 6m6-6 6 6" />
+    </Icon>
   );
 }
 
-/**
- * One horizontal bar on a caller-supplied scale.
- *
- * A plain function, not a component: ChartCard hands its child straight to
- * Recharts' <ResponsiveContainer>, which measures a chart element and will not
- * measure a wrapper.
- */
-function SingleBar({
-  value,
-  max,
-  color,
-  format,
-  unitLabel,
-}: {
-  value: number;
-  max: number;
-  color: string;
-  format: (n: number) => string;
-  unitLabel: string;
-}) {
+function ArrowOutIcon() {
   return (
-    <BarChart
-      layout="vertical"
-      data={[{ name: "", value }]}
-      margin={{ top: 8, right: 12, bottom: 8, left: 12 }}
+    <Icon>
+      <path d="M12 5v14m0 0 6-6m-6 6-6-6" />
+    </Icon>
+  );
+}
+
+function Icon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg
+      className="size-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
     >
-      {/* Axes are hidden: the figure is printed in the header, and the bar's
-          job here is proportion, not precise reading. */}
-      <XAxis type="number" domain={[0, max]} hide />
-      <YAxis type="category" dataKey="name" hide />
-      <Tooltip
-        {...tooltipProps}
-        cursor={{ fill: chartColors.grid, opacity: 0.3 }}
-        formatter={(v) => [`${format(Number(v))} ${unitLabel}`, ""]}
-      />
-      <Bar dataKey="value" fill={color} radius={6} barSize={40} />
-    </BarChart>
+      {children}
+    </svg>
   );
 }
 

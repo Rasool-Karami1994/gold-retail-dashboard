@@ -6,6 +6,7 @@ import { adminLoginLimiter } from "../middleware/rate-limit.js";
 import { requireRole } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error-handler.js";
 import { AdminModel } from "../models/admin.model.js";
+import { env } from "../config/env.js";
 
 /**
  * Mounted at /api/admin/auth.
@@ -39,6 +40,25 @@ adminAuthRouter.get(
     const admin = await AdminModel.findById(req.user?.id);
     if (!admin) throw new HttpError(401, "Authentication required");
 
-    res.json({ admin });
+    /**
+     * `smsMock` rides along so the shell can warn that no real SMS is going
+     * out. It is on this response rather than its own endpoint because the
+     * shell already calls /me on load -- a banner is not worth a second request
+     * on every page -- and admin-only because it describes how the deployment
+     * is configured, which is nobody else's business.
+     */
+    /**
+     * `insecureOtp` separates the two very different reasons SMS can be mocked.
+     * On a developer's machine it is routine and a red banner every day is
+     * noise that gets tuned out. In production it means one-time codes are
+     * coming back in API responses and the customer login is effectively open,
+     * which is worth shouting about. The severity is decided here because the
+     * browser has no way to know which environment the API is running in.
+     */
+    res.json({
+      admin,
+      smsMock: env.smsIsMock,
+      insecureOtp: env.smsIsMock && env.isProduction,
+    });
   }),
 );

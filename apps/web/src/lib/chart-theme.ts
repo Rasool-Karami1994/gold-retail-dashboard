@@ -40,6 +40,23 @@ export function seriesColor(index: number): string {
  * left-to-right and puts the value axis on the left, both of which read
  * backwards in Persian. `reversed` on the X axis and `orientation: "right"` on
  * the Y axis fix that; spread these onto <XAxis> / <YAxis>.
+ *
+ * WHY `width: "auto"` AND NOT A NUMBER.
+ *
+ * `width` is the band Recharts reserves for the value axis, and with
+ * `orientation: "right"` that band is taken off the RIGHT edge of the plot.
+ * Whatever the labels don't use is left as dead space between them and the edge
+ * of the card -- and Persian numerals are narrow, so a hardcoded band was mostly
+ * empty: "۸" measures about 7px inside a 72px reservation, which is where the
+ * ~72px gap on every Overview chart came from.
+ *
+ * In LTR the same slack lands between the labels and the left edge, where it
+ * reads as ordinary gutter and nobody notices. Mirroring the axis is what turns
+ * a harmless over-reservation into a visible hole.
+ *
+ * "auto" (Recharts 3.x) sizes the band to the widest rendered tick, so it fits
+ * both a bare "۸" and a formatted "۱۵٫۲ م" without either being guessed at.
+ * Do not reintroduce a number here, and do not override it per chart.
  */
 export const rtlAxisProps = {
   x: {
@@ -53,7 +70,7 @@ export const rtlAxisProps = {
     tickLine: false,
     axisLine: false,
     tick: { fill: chartColors.axis, fontSize: 11 },
-    width: 56,
+    width: "auto" as const,
   },
 } as const;
 

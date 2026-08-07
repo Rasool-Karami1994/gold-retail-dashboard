@@ -160,11 +160,9 @@ function ComparisonBars({
     <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
       <CartesianGrid {...gridProps} />
       <XAxis dataKey="label" {...rtlAxisProps.x} />
-      <YAxis
-        {...rtlAxisProps.y}
-        tickFormatter={tickFormat ?? format}
-        width={72}
-      />
+      {/* No `width` override -- the shared props size the axis to its labels.
+          A number here is what reserved 72px for a 7px numeral. */}
+      <YAxis {...rtlAxisProps.y} tickFormatter={tickFormat ?? format} />
       <Tooltip
         {...tooltipProps}
         cursor={{ fill: chartColors.grid, opacity: 0.4 }}

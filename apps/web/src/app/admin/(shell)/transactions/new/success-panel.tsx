@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Button, Card, CardContent, buttonStyles } from "@/components/ui";
+import { Button, Card, CardContent, buttonStyles, toast } from "@/components/ui";
 import { formatNumber, formatToman } from "@/lib/format";
 import {
   fetchTransaction,
@@ -144,6 +144,15 @@ export function SuccessPanel({ transaction }: { transaction: TransactionDetail }
           )}
         </div>
 
+        {/*
+          Only when the API is mocking SMS: the customer got nothing, so the
+          admin has to pass the link on themselves -- WhatsApp, Telegram, or
+          reading it out at the counter.
+        */}
+        {data?.devInvoiceMessage && (
+          <DevInvoiceMessage message={data.devInvoiceMessage} />
+        )}
+
         <div className="flex flex-wrap items-center gap-3">
           <Link href={detailHref} className={buttonStyles()}>
             مشاهده‌ی معامله
@@ -171,6 +180,57 @@ export function SuccessPanel({ transaction }: { transaction: TransactionDetail }
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The message that would have been texted, with a one-click copy.
+ *
+ * The whole message rather than just the URL: it carries the invoice number and
+ * the amount too, which is what makes it sendable as-is instead of something
+ * the admin has to rewrite around a bare link.
+ */
+function DevInvoiceMessage({ message }: { message: string }) {
+  const [copied, setCopied] = React.useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopied(true);
+      // Reverts so a second send doesn't look like it silently failed.
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard access can be refused (insecure origin, denied permission).
+      // The text is on screen and selectable, so this is a downgrade, not a
+      // dead end -- say so rather than failing silently.
+      toast.error("کپی خودکار ممکن نشد", {
+        description: "متن را به صورت دستی انتخاب و کپی کنید.",
+      });
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/8 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-medium text-warning">
+          پیامکی ارسال نشد (حالت آزمایشی)
+        </span>
+        <Button type="button" variant="secondary" size="sm" onClick={copy}>
+          {copied ? "کپی شد" : "کپی پیام"}
+        </Button>
+      </div>
+
+      <p className="text-xs text-fg-muted">
+        این متن را برای مشتری بفرستید تا فاکتورش را ببیند.
+      </p>
+
+      {/* dir="ltr" is wrong for the Persian lines but right for the URL, which
+          is the part being copied by eye. whitespace-pre-line keeps the three
+          lines the SMS actually has. */}
+      <pre className="overflow-x-auto whitespace-pre-line rounded-md bg-surface-sunken p-3 text-2xs leading-relaxed text-fg-secondary">
+        {message}
+      </pre>
+    </div>
   );
 }
 

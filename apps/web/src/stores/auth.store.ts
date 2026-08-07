@@ -46,7 +46,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   reset: () => set({ user: null, status: "unknown" }),
 }));
 
-/* ---- Selectors ----------------------------------------------------------- */
 /* Subscribing to a slice rather than the whole store keeps a component from
    re-rendering when an unrelated field changes. */
 

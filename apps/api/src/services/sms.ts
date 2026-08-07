@@ -17,10 +17,6 @@ import { normalizeMobile } from "../lib/mobile.js";
  * the provider below is the only file that would change.
  */
 
-/* -------------------------------------------------------------------------- */
-/* Interface                                                                   */
-/* -------------------------------------------------------------------------- */
-
 export interface SmsMessage {
   /** Recipient. Normalised to `09XXXXXXXXX` before sending. */
   to: string;
@@ -41,6 +37,15 @@ export interface SmsMessage {
 export interface SmsResult {
   provider: string;
   messageId?: string;
+  /**
+   * The rendered message, returned ONLY by the mock provider.
+   *
+   * A real gateway has no reason to hand the text back -- the caller wrote it.
+   * The mock does, because nothing was delivered and the only way to complete a
+   * flow locally is to read the code or link off the screen. Callers must treat
+   * its presence as "we are in mock mode", never assume it.
+   */
+  text?: string;
 }
 
 export interface SmsProvider {
@@ -61,30 +66,43 @@ export class SmsError extends Error {
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Console stub                                                                */
-/* -------------------------------------------------------------------------- */
-
 /**
- * Development stub: prints the message instead of sending it.
+ * Development stub: prints the message instead of sending it, and hands the
+ * text back so the caller can show it on screen.
  *
- * Refuses to run in production. Silently "succeeding" without delivering would
- * make every customer login fail in a way that looks like a client bug.
+ * !! THIS PUTS ONE-TIME CODES IN API RESPONSES. !!
+ *
+ * That is the point -- without a gateway there is no other way to finish a
+ * login -- and it is why it is only acceptable on a developer's machine or a
+ * trusted MVP demo. Anyone who can see the response can sign in as any customer
+ * whose number they know, so the OTP stops being a second factor and becomes
+ * decoration. Switch SMS_PROVIDER to `kavenegar` before a single real customer
+ * depends on it for account security.
+ *
+ * The production guard below is the backstop: this refuses to load at all when
+ * NODE_ENV=production, so the leak cannot ship by forgetting an env var.
+ * Silently "succeeding" without delivering would also make every customer login
+ * fail in a way that looks like a client bug.
  */
-export class ConsoleSmsProvider implements SmsProvider {
-  readonly name = "console";
+export class MockSmsProvider implements SmsProvider {
+  readonly name = "mock";
 
   constructor() {
-    if (env.isProduction) {
+    // config/env.ts already decides this at boot and exits, which is where the
+    // explanation lives. This stays as a second gate for anything that builds a
+    // provider directly -- a script, a test -- without going through that path.
+    if (env.isProduction && !env.ALLOW_MOCK_SMS_IN_PRODUCTION) {
       throw new Error(
-        "ConsoleSmsProvider cannot be used in production -- it does not send " +
-          "anything. Set SMS_PROVIDER=kavenegar.",
+        "MockSmsProvider cannot be used in production -- it does not send " +
+          "anything and it exposes OTP codes in API responses. " +
+          "Set SMS_PROVIDER=kavenegar, or ALLOW_MOCK_SMS_IN_PRODUCTION=true " +
+          "to accept that trade deliberately.",
       );
     }
   }
 
   async send(message: SmsMessage): Promise<SmsResult> {
-    const messageId = `console-${Date.now().toString(36)}`;
+    const messageId = `mock-${Date.now().toString(36)}`;
 
     console.log(
       [
@@ -99,13 +117,15 @@ export class ConsoleSmsProvider implements SmsProvider {
       ].join("\n"),
     );
 
-    return { messageId, provider: this.name };
+    return { messageId, provider: this.name, text: message.text };
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Kavenegar                                                                   */
-/* -------------------------------------------------------------------------- */
+/**
+ * @deprecated Renamed to MockSmsProvider. Kept so `SMS_PROVIDER=console` in an
+ * existing .env keeps resolving; env.ts folds that value into `mock`.
+ */
+export const ConsoleSmsProvider = MockSmsProvider;
 
 const KAVENEGAR_BASE = "https://api.kavenegar.com/v1";
 
@@ -251,14 +271,10 @@ export class KavenegarSmsProvider implements SmsProvider {
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Factory                                                                     */
-/* -------------------------------------------------------------------------- */
-
 function createProvider(): SmsProvider {
   switch (env.SMS_PROVIDER) {
-    case "console":
-      return new ConsoleSmsProvider();
+    case "mock":
+      return new MockSmsProvider();
     case "kavenegar":
       return new KavenegarSmsProvider(
         env.KAVENEGAR_API_KEY ?? "",

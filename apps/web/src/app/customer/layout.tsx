@@ -31,7 +31,7 @@ export default function CustomerLayout({
         */}
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface-sunken px-4 md:hidden">
           <SidebarMenuButton className="-ms-2" />
-          <span className="text-sm font-bold text-fg">جی‌داش</span>
+          <span className="text-sm font-bold text-fg">گالری طلای روزبه</span>
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>

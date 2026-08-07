@@ -17,6 +17,11 @@ language is driven by a token set in
 - Node.js 20+ (developed on 24)
 - pnpm 9+ (`corepack enable`)
 - A MongoDB instance — the bundled `docker-compose.yml` provides one
+- Chrome or Chromium, for rendering invoice PDFs — see
+  [DEPLOY.md](DEPLOY.md#the-chromium-requirement)
+
+Or skip all of it and run the whole stack in containers —
+[Running everything in Docker](#running-everything-in-docker).
 
 ## Getting started
 
@@ -31,7 +36,7 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 ```
 
-Start MongoDB (skip if you're pointing `MONGODB_URI` at Atlas or an existing server):
+Start MongoDB (skip if you're pointing `MONGO_URI` at Atlas or an existing server):
 
 ```bash
 pnpm db:up
@@ -73,7 +78,169 @@ Run these from the repo root.
 | `pnpm start` | Serve both production builds |
 | `pnpm typecheck` | `tsc --noEmit` across the workspace |
 | `pnpm lint` | Lint the web app |
-| `pnpm db:up` / `pnpm db:down` | Start / stop the local Mongo container |
+| `pnpm db:up` / `pnpm db:down` | Start / stop **just** the Mongo container, for host development |
+| `pnpm docker:up` / `pnpm docker:down` | The full three-service stack — see below |
+| `pnpm docker:logs` | Follow all three services' logs |
+| `pnpm docker:seed` | Seed the admin user inside the running API container |
+
+## Running everything in Docker
+
+`docker-compose.yml` runs all three services — Mongo, the API and the web app —
+on one network. This is an alternative to `pnpm dev`, not a companion to it:
+both want ports 3000 and 4100, so run one or the other.
+
+### First run
+
+```bash
+cp .env.example .env
+```
+
+Open it and set **`JWT_SECRET`** to something at least 32 characters. Both
+containers read that one file, which is what keeps the API and the web
+middleware on the same signing key. Set `SEED_ADMIN_PASSWORD` too (minimum 12
+characters) — you need it in a moment.
+
+```bash
+docker compose up --build
+```
+
+First build takes a few minutes: the API image installs Chromium and Vazir, and
+the web image runs a full Next production build. Afterwards, web is on
+http://localhost:3000 and the API on http://localhost:4100.
+
+> **4100, not the 4000 elsewhere in this README.** Container-internal ports are
+> fixed; `WEB_PORT`, `API_PORT` and `MONGO_PORT` in `.env` decide only what they
+> are published as on the host, and 4100 is the default because 4000 is commonly
+> taken. Change `API_PORT` and `NEXT_PUBLIC_API_URL`, `PUBLIC_API_URL` and
+> `ALLOWED_ORIGIN` all follow from it automatically — that derivation lives in
+> `docker-compose.yml` so the four cannot drift apart.
+
+Then create the admin account, once, in the running API container:
+
+```bash
+pnpm docker:seed
+```
+
+That runs the TypeScript entry point through `tsx`, so it only works against the
+dev container. The production image has neither `tsx` nor `src/`, and runs the
+compiled copy instead:
+
+```bash
+docker compose exec api node dist/scripts/seed-admin.js
+```
+
+Either way it is idempotent — an existing username is left untouched unless you
+append `--force`, which resets the password.
+
+Sign in at http://localhost:3000/admin/login with `SEED_ADMIN_USERNAME` /
+`SEED_ADMIN_PASSWORD`, then blank both out of `.env` — a running server has no
+reason to hold an admin password.
+
+With `SMS_PROVIDER=console` (the default) OTP codes are printed rather than
+sent. Read them from the API's log:
+
+```bash
+docker compose logs -f api
+```
+
+### Day to day
+
+```bash
+docker compose up
+```
+
+```bash
+docker compose down
+```
+
+`docker compose down -v` additionally deletes the `mongo-data` volume — every
+customer and transaction with it. Rendered invoices live in Cloudinary and are
+unaffected.
+
+### Dev mode is the default
+
+`docker-compose.override.yml` is loaded automatically, and it swaps both apps
+onto bind-mounted source running `tsx watch` and `next dev`. Edit a file on the
+host and the container reloads; no rebuild. To run the production images
+instead, name the base file explicitly:
+
+```bash
+docker compose -f docker-compose.yml up --build
+```
+
+> **The production profile needs real SMS credentials.** Those images run
+> `NODE_ENV=production`, and the mock provider refuses to load there — it would
+> otherwise put one-time codes in API responses. It does not stop the server
+> starting; it fails on the first OTP with a 502 and *"Could not send the
+> verification code"*, with the real reason only in `docker compose logs api`.
+> Set `SMS_PROVIDER=kavenegar` and the `KAVENEGAR_*` values, or stay in dev mode.
+
+Rebuild after changing any `NEXT_PUBLIC_*` value:
+
+```bash
+docker compose up --build
+```
+
+**After changing a dependency, `--build` on its own is not enough in dev mode.**
+Each app's `node_modules` is an anonymous volume — that is what stops the source
+bind mount from burying the install baked into the image — and Docker only
+populates one when it first creates it. A rebuilt image with new packages sits
+behind the volume from the previous run. Discard them explicitly:
+
+```bash
+docker compose up --build --renew-anon-volumes
+```
+
+That touches only the anonymous volumes. `mongo-data` is named and survives it;
+`down -v` is the command that would take it too.
+
+### Things that are easy to get wrong
+
+**Containers reach each other by service name, never `localhost`.** Inside a
+container `localhost` is that container. The API talks to `mongo:27017`, and
+anything server-side in the web app would talk to `api:4100` — that is what
+`API_INTERNAL_URL` is for. Nothing reads it today, because `src/lib/api.ts` runs
+only in the browser; it is set so the next server component that calls the API
+has the right value to reach for.
+
+**`NEXT_PUBLIC_API_URL` is the other side of that split, and must stay
+`http://localhost:4100/api/v1`.** It is fetched by the *browser*, which sits
+outside the compose network and cannot resolve `api`. It is also compiled into
+the bundle at build time, which is why it lives under `build.args` in
+`docker-compose.yml` rather than in `.env` — changing it needs `--build`, not a
+restart. `JWT_SECRET` is the reverse: read at run time, so a restart is enough.
+
+**The root `.env` is for containers only.** `apps/api/.env` and
+`apps/web/.env.local` are for `pnpm dev` on the host and are not read by
+Compose — they point at `127.0.0.1`, which inside a container is the container.
+Values that depend on the network (`MONGO_URI`, `ALLOWED_ORIGIN`,
+`PUBLIC_API_URL`) are set in `docker-compose.yml`, where they override anything
+of the same name in `.env`.
+
+**Both Dockerfiles build from the repo root**, because pnpm needs
+`pnpm-lock.yaml` and `pnpm-workspace.yaml` and `COPY` cannot climb above its
+context. Docker therefore reads `/.dockerignore` and *not* the per-app ones —
+`apps/api/.dockerignore` and `apps/web/.dockerignore` mirror it for a
+hypothetical single-app context, but Compose never consults them.
+
+**Invoice PDFs are uploaded to Cloudinary, not written anywhere in the stack.**
+Set the `CLOUDINARY_*` variables in `.env` to exercise the invoice flow; without
+them the render fails and the transaction is still recorded with a null
+`invoicePdfUrl`. Re-rendering uploads a new asset and leaves the old one, so
+links already texted keep working — and storage grows without bound.
+
+### Persian text in PDFs
+
+The API image installs Chromium plus the Vazir TrueType faces into
+`/usr/share/fonts/vazir`, since Alpine ships no Arabic-script font and Chromium
+would otherwise render Persian as tofu.
+
+That install is a safety net rather than the mechanism, though: invoices already
+render correctly because `services/invoice.ts` inlines
+`apps/api/assets/fonts/*.woff2` into the template as base64 data URIs, precisely
+so a headless browser cannot print before the font arrives. The system fonts
+cover anything rendered outside that template, and any glyph the three vendored
+faces miss.
 
 ## apps/web
 
@@ -334,7 +501,16 @@ in `config/env.ts`, and add a case to the factory. Callers only ever see
 
 | Method | Path | |
 | --- | --- | --- |
+| `GET` | `/api/health` | Liveness only. Always 200 `{ status: "ok" }`, touches nothing |
 | `GET` | `/api/v1/health` | Liveness + Mongo status (503 when the DB is down) |
+
+The two are not redundant. `/api/health` is mounted ahead of the body parsers
+and the auth middleware and makes no database call, so it is the cheapest reply
+the server can produce — that is what an external uptime pinger should hit to
+keep a free-tier instance from spinning down, and it cannot turn a keep-alive
+ping into a false alert. `/api/v1/health` is the real readiness check and is
+what the Docker healthcheck and any orchestrator should use, because "up but
+cannot reach its database" is precisely the state they need to see.
 | `GET` | `/api/v1/courses` | List; `?page=&limit=&published=&search=` |
 | `GET` | `/api/v1/courses/:id` | One course |
 | `POST` | `/api/v1/courses` | Create |
@@ -410,7 +586,6 @@ Invoices:
 | Method | Path | |
 | --- | --- | --- |
 | `POST` | `/api/admin/transactions/:id/invoice` | Render (or re-render) the PDF; admin-only, synchronous |
-| `GET` | `/api/invoices/:filename` | **Public, no auth** — the link sent by SMS |
 
 Creating a transaction kicks off a render in the background, so the cashier
 never waits on Chrome and a rendering failure cannot fail a recorded sale.

@@ -44,6 +44,8 @@ export {
   type DateRangeFilterProps,
 } from "./date-range-filter";
 export { ChartCard, type ChartCardProps } from "./chart-card";
+// The no-axis counterpart to ChartCard, for figures that don't vary over one.
+export { StatCard, type StatCardProps, type StatTone } from "./stat-card";
 
 export { Toaster } from "./toast";
 // Straight from the store, not via toast.tsx -- see the note at the bottom of

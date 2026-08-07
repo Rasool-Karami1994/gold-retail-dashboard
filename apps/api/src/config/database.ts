@@ -20,7 +20,7 @@ export async function connectDatabase(): Promise<void> {
     console.warn("[db] disconnected");
   });
 
-  await mongoose.connect(env.MONGODB_URI, {
+  await mongoose.connect(env.MONGO_URI, {
     serverSelectionTimeoutMS: 5_000,
   });
 }

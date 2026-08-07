@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api";
 import { requestLoginOtp, verifyLoginOtp } from "@/lib/auth-api";
 import { formatNumber } from "@/lib/format";
 import { isValidMobile, normalizeMobile } from "@/lib/mobile";
+import { announceOtpSent } from "@/lib/otp-toast";
 
 /**
  * Customer sign-in -- the site's front door.
@@ -98,6 +99,9 @@ export default function CustomerLoginForm() {
       setCode("");
       setSecondsLeft(result.expiresInSeconds);
       verify.reset();
+      // Shows the code itself when the API is mocking SMS; otherwise just
+      // confirms a message went out.
+      announceOtpSent(result.devOtpCode);
     },
   });
 
@@ -147,7 +151,7 @@ export default function CustomerLoginForm() {
     <main className="flex min-h-dvh items-center justify-center px-6 py-12">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <header className="flex flex-col items-center gap-1 text-center">
-          <span className="text-lg font-bold text-fg">جی‌داش</span>
+          <span className="text-lg font-bold text-fg">گالری طلای روزبه</span>
           <span className="text-xs text-fg-muted">حساب کاربری مشتریان</span>
         </header>
 
