@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
 import puppeteer, { type Browser } from "puppeteer-core";
 import { env } from "../config/env.js";
 import { HttpError } from "../middleware/error-handler.js";
@@ -35,11 +36,6 @@ import { formatToman } from "../lib/jalali.js";
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 const FONT_DIR = join(PACKAGE_ROOT, "assets", "fonts");
-
-/** Absolute directory PDFs are written to. */
-export const INVOICE_DIR = isAbsolute(env.INVOICE_STORAGE_DIR)
-  ? env.INVOICE_STORAGE_DIR
-  : join(PACKAGE_ROOT, env.INVOICE_STORAGE_DIR);
 
 const FONT_FACES = [
   { file: "Vazir-Regular-FD.woff2", weight: 400 },
@@ -183,38 +179,124 @@ export async function closeInvoiceBrowser(): Promise<void> {
 }
 
 /**
- * Filenames must be unguessable, because GET /api/invoices/:filename is public
- * -- that is the point, so an SMS link opens without a login.
+ * WHERE INVOICES LIVE, AND WHY NOT ON DISK.
  *
- * That makes the URL itself the credential, so it has to carry real entropy.
- * Naming the file after the invoice number (`INV-20260802-0007.pdf`) would let
- * anyone walk the entire day's sales and read customer names, phone numbers
- * and amounts. The invoice number is kept as a human-readable prefix purely so
- * the files are recognisable on disk; the 32 hex characters after it are what
- * actually protects the document.
+ * Render's filesystem is ephemeral: it is rebuilt on every deploy and every
+ * restart. A PDF written locally disappears, and the link already texted to the
+ * customer starts answering 404 with nothing in the app noticing, because
+ * `invoicePdfUrl` is still recorded on the transaction. So the rendered buffer
+ * goes straight to Cloudinary and the delivery URL is what gets stored.
+ *
+ * `resource_type: "raw"` because a PDF is not an image to Cloudinary. Its image
+ * pipeline would try to transform and rasterise it; raw stores and serves the
+ * bytes untouched.
  */
-function buildFilename(invoiceNumber: string): string {
-  const token = randomBytes(16).toString("hex");
-  return `${invoiceNumber}-${token}.pdf`;
-}
+const CLOUDINARY_FOLDER = "g-dash/invoices";
 
-/** Matches what `buildFilename` produces, and nothing else. */
-export const INVOICE_FILENAME_PATTERN = /^INV-\d{8}-\d{4}-[0-9a-f]{32}\.pdf$/;
+let cloudinaryConfigured = false;
 
-export interface GeneratedInvoice {
-  filename: string;
-  /** Absolute, because it is sent to a customer's phone by SMS. */
-  url: string;
-  path: string;
+/**
+ * Configured on first use rather than at import.
+ *
+ * Importing this module must stay free of side effects -- the seed script and
+ * the tests pull in the transaction model through it, and neither renders an
+ * invoice or should need credentials to load.
+ */
+function getCloudinary() {
+  const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = env;
+
+  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+    // Reached only in development -- env.ts requires all three in production,
+    // so a misconfigured deployment fails at boot instead of here. Locally this
+    // surfaces as a failed render, which the app already handles: the sale is
+    // recorded, `invoicePdfUrl` stays null, and the detail screen offers a retry.
+    throw new Error(
+      "Cloudinary is not configured, so the invoice cannot be stored. Set " +
+        "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET " +
+        "in apps/api/.env -- the free tier is enough for development.",
+    );
+  }
+
+  if (!cloudinaryConfigured) {
+    cloudinary.config({
+      cloud_name: CLOUDINARY_CLOUD_NAME,
+      api_key: CLOUDINARY_API_KEY,
+      api_secret: CLOUDINARY_API_SECRET,
+      secure: true,
+    });
+    cloudinaryConfigured = true;
+  }
+
+  return cloudinary;
 }
 
 /**
- * Renders the invoice for a transaction, writes it to disk, and records the
- * URL on the transaction.
+ * The delivery URL is public, so the public_id has to carry the entropy.
  *
- * Safe to call more than once: each call writes a new file with a fresh token
- * and repoints `invoicePdfUrl` at it. Older files are left in place, since a
- * link already sent by SMS should keep working.
+ * A raw Cloudinary asset is readable by anyone who knows its URL -- that is the
+ * requirement, since the customer opens it from an SMS with no account. It also
+ * means the id IS the credential, exactly as the on-disk filename was. Naming
+ * an invoice after its number alone (`INV-20260802-0007`) would let anyone walk
+ * a day's sales and read customer names, numbers and amounts, so the number is
+ * only a human-readable prefix and the 32 hex characters after it are what
+ * actually protect the document.
+ *
+ * The `.pdf` suffix is deliberate: for a raw resource Cloudinary uses the
+ * public_id verbatim as the delivery path, so without it the URL has no
+ * extension and phones are less consistent about opening it in a PDF viewer.
+ */
+function buildPublicId(invoiceNumber: string): string {
+  const token = randomBytes(16).toString("hex");
+  return `${CLOUDINARY_FOLDER}/${invoiceNumber}-${token}.pdf`;
+}
+
+/**
+ * Uploads the rendered bytes and resolves to Cloudinary's response.
+ *
+ * `upload_stream` rather than `upload`, because the PDF is already a Buffer in
+ * memory -- the plain `upload` call takes a path or a data URI, and base64ing a
+ * few hundred KB only to have the SDK decode it again is pure overhead.
+ */
+function uploadPdf(pdf: Uint8Array, publicId: string): Promise<UploadApiResponse> {
+  return new Promise((resolve, reject) => {
+    const stream = getCloudinary().uploader.upload_stream(
+      {
+        resource_type: "raw",
+        public_id: publicId,
+        // The id already carries 128 bits of entropy; letting Cloudinary append
+        // its own suffix would only make the stored URL harder to correlate
+        // with the asset when one has to be found in the dashboard.
+        unique_filename: false,
+        use_filename: false,
+        // Each render gets a fresh id, so a collision means something is wrong
+        // and silently replacing an existing invoice is the worst answer.
+        overwrite: false,
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        if (!result) return reject(new Error("Cloudinary returned no result"));
+        resolve(result);
+      },
+    );
+
+    stream.end(pdf);
+  });
+}
+
+export interface GeneratedInvoice {
+  /** Cloudinary public_id, including the folder and the .pdf suffix. */
+  filename: string;
+  /** Absolute HTTPS delivery URL, because it is sent to a customer's phone. */
+  url: string;
+}
+
+/**
+ * Renders the invoice for a transaction, uploads it, and records the URL.
+ *
+ * Safe to call more than once: each call uploads a new asset under a fresh id
+ * and repoints `invoicePdfUrl` at it. Superseded assets are left in Cloudinary
+ * on purpose, since a link already sent by SMS should keep working -- which
+ * also means storage grows with every re-render and nothing prunes it.
  */
 export interface GenerateInvoiceOptions {
   /**
@@ -267,12 +349,12 @@ export async function generateInvoicePdf(
 
   const pdf = await renderPdf(html);
 
-  await mkdir(INVOICE_DIR, { recursive: true });
-  const filename = buildFilename(transaction.invoiceNumber);
-  const path = join(INVOICE_DIR, filename);
-  await writeFile(path, pdf);
+  const filename = buildPublicId(transaction.invoiceNumber);
+  const uploaded = await uploadPdf(pdf, filename);
 
-  const url = `${env.PUBLIC_API_URL.replace(/\/$/, "")}/api/invoices/${filename}`;
+  // secure_url, never `url`: the latter is http, and an http link in an SMS is
+  // both downgraded by some clients and refused outright by others.
+  const url = uploaded.secure_url;
 
   // updateOne rather than save(): nothing else on the document changed, and a
   // save would re-run the pre-validate hook and rewrite derived fields for no
@@ -293,7 +375,7 @@ export async function generateInvoicePdf(
     );
   }
 
-  return { filename, url, path };
+  return { filename, url };
 }
 
 /**

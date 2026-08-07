@@ -30,9 +30,6 @@ services:
       # import fails the moment the bind mount appears.
       - ./apps/api:/repo/apps/api
       - /repo/apps/api/node_modules
-      # api-uploads is inherited from docker-compose.yml and nests inside the
-      # bind mount above (the longer path wins), so invoices still go to the
-      # volume rather than the host directory.
 
   web:
     build:

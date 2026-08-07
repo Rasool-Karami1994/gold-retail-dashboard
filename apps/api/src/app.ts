@@ -12,7 +12,6 @@ import { adminTransactionRouter } from "./routes/admin-transaction.routes.js";
 import { customerAuthRouter } from "./routes/customer-auth.routes.js";
 import { customerMeRouter } from "./routes/customer-me.routes.js";
 import { customerTransactionRouter } from "./routes/customer-transaction.routes.js";
-import { invoiceRouter } from "./routes/invoice.routes.js";
 import { authenticate } from "./middleware/auth.js";
 import { errorHandler, notFound } from "./middleware/error-handler.js";
 
@@ -55,9 +54,9 @@ export function createApp(): Express {
   app.use("/api/customer/me", customerMeRouter);
   app.use("/api/customer/transactions", customerTransactionRouter);
 
-  // Public on purpose: customers open these from an SMS link with no account.
-  // The filename is the credential -- see routes/invoice.routes.ts.
-  app.use("/api/invoices", invoiceRouter);
+  // There is no /api/invoices route any more. Invoices are served by
+  // Cloudinary now, so `invoicePdfUrl` points straight at res.cloudinary.com
+  // and nothing has to proxy the bytes -- see services/invoice.ts.
   app.use("/api/v1", apiRouter);
 
   // Order matters: 404 first, then the error handler that renders it.

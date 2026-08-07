@@ -158,10 +158,9 @@ COPY apps/api/package.json ./apps/api/package.json
 # resolves from dist/services/ to /repo/apps/api, so this is the path it reads.
 COPY apps/api/assets ./apps/api/assets
 
-# INVOICE_STORAGE_DIR defaults to uploads/invoices, relative to the api package
-# root. Created here so it exists and is writable before the named volume that
-# compose mounts over it inherits the ownership.
-RUN mkdir -p /repo/apps/api/uploads/invoices && chown -R node:node /repo/apps/api/uploads
+# No uploads directory: rendered invoices go straight to Cloudinary, so the
+# container writes nothing it needs to keep. That is the point -- the previous
+# local directory did not survive a redeploy on an ephemeral filesystem.
 
 USER node
 WORKDIR /repo/apps/api

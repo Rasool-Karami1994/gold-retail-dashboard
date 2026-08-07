@@ -153,9 +153,9 @@ docker compose up
 docker compose down
 ```
 
-`docker compose down -v` additionally deletes the `mongo-data` and
-`api-uploads` volumes — every customer, transaction and rendered invoice with
-them.
+`docker compose down -v` additionally deletes the `mongo-data` volume — every
+customer and transaction with it. Rendered invoices live in Cloudinary and are
+unaffected.
 
 ### Dev mode is the default
 
@@ -191,8 +191,8 @@ behind the volume from the previous run. Discard them explicitly:
 docker compose up --build --renew-anon-volumes
 ```
 
-That touches only the anonymous volumes. `mongo-data` and `api-uploads` are
-named and survive it; `down -v` is the command that would take those too.
+That touches only the anonymous volumes. `mongo-data` is named and survives it;
+`down -v` is the command that would take it too.
 
 ### Things that are easy to get wrong
 
@@ -223,12 +223,11 @@ context. Docker therefore reads `/.dockerignore` and *not* the per-app ones —
 `apps/api/.dockerignore` and `apps/web/.dockerignore` mirror it for a
 hypothetical single-app context, but Compose never consults them.
 
-**Invoice PDFs live on the `api-uploads` volume**, not in `apps/api/uploads` on
-the host, even in dev — the volume is mounted at the same path and nests inside
-the source bind mount, so the longer path wins. Regenerating an invoice writes a
-new file and leaves the old one in place, so links already texted to customers
-keep working; the flip side is that the volume grows without bound and there is
-no cleanup job yet.
+**Invoice PDFs are uploaded to Cloudinary, not written anywhere in the stack.**
+Set the `CLOUDINARY_*` variables in `.env` to exercise the invoice flow; without
+them the render fails and the transaction is still recorded with a null
+`invoicePdfUrl`. Re-rendering uploads a new asset and leaves the old one, so
+links already texted keep working — and storage grows without bound.
 
 ### Persian text in PDFs
 
@@ -578,7 +577,6 @@ Invoices:
 | Method | Path | |
 | --- | --- | --- |
 | `POST` | `/api/admin/transactions/:id/invoice` | Render (or re-render) the PDF; admin-only, synchronous |
-| `GET` | `/api/invoices/:filename` | **Public, no auth** — the link sent by SMS |
 
 Creating a transaction kicks off a render in the background, so the cashier
 never waits on Chrome and a rendering failure cannot fail a recorded sale.

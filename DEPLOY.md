@@ -109,9 +109,9 @@ pm2 save && pm2 startup
 
 systemd units work equally well. Two things to get right whichever you use:
 
-- **Set the working directory to the repo root.** `INVOICE_STORAGE_DIR` is
-  resolved relative to the API's own root, and `.env` is read from
-  `apps/api/`.
+- **Set the working directory to the repo root.** `.env` is read from
+  `apps/api/`, and the Vazir font files the invoice template inlines are
+  resolved relative to the API package root.
 - **Restart on failure.** The API exits deliberately when it cannot reach Mongo
   or when a required variable is missing — that is a crash you want retried
   while the database comes up, not a silent stop.
@@ -193,40 +193,43 @@ configured.
 
 ## 7. Invoice PDFs
 
-Invoices are written to `INVOICE_STORAGE_DIR` (default `uploads/invoices`) and
-served by the API itself at `/api/invoices/:filename`.
+Puppeteer renders the PDF, the API uploads it to **Cloudinary** as a `raw`
+resource, and the returned `secure_url` is stored on the transaction's
+`invoicePdfUrl`. The API serves no PDF bytes at all — there is no
+`/api/invoices/:filename` route and nothing is written to local disk.
 
-> **On Render, this directory does not survive a deploy.** The default
-> filesystem is ephemeral and is rebuilt on every deploy and restart. The PDFs
-> disappear; the links already texted to customers start answering 404; and
-> nothing in the app notices, because `invoicePdfUrl` is still recorded on the
-> transaction. Attach a Render disk and point `INVOICE_STORAGE_DIR` at its
-> mount path before going live. `POST /api/admin/transactions/:id/invoice`
-> re-renders one invoice at a time, which is a recovery tool, not a migration.
->
-> The `CLOUDINARY_*` variables in `.env.example` are reserved for moving this
-> to an object store. Nothing reads them yet — `services/invoice.ts` still
-> writes to disk.
+That is deliberate: Render's filesystem is ephemeral, so anything written
+locally disappears on the next deploy while `invoicePdfUrl` goes on pointing at
+it — links already texted to customers start answering 404 and nothing in the
+app notices.
 
-**They are served by the API on purpose, not by the proxy.** The route sets
-`Content-Disposition`, checks the filename against a strict pattern, and
-resolves the path so `..` cannot escape the directory. Pointing nginx straight
-at the folder would skip all three.
+Set all three `CLOUDINARY_*` variables. The API refuses to boot in production
+without them, rather than recording sales whose invoices silently never appear.
 
-That route is **public** by design: customers open these links from an SMS with
-no account, so the unguessable filename is the credential. If you front it with
-a CDN, do not cache aggressively — the same invoice is re-rendered under a new
-filename when a payment is recorded.
+**The delivery URL is public, by design.** Customers open the link from an SMS
+with no account, so the URL is the credential. That holds because the public_id
+carries 128 bits of entropy:
 
-Two operational notes:
+```
+g-dash/invoices/INV-20260807-0001-<32 hex>.pdf
+```
 
-- **Put the directory on a volume that survives deploys.** The URL is stored on
-  the transaction; wiping the folder breaks links already sent by SMS. If a file
-  does go missing, `POST /api/admin/transactions/:id/invoice` re-renders it and
-  repoints the record without re-texting the customer.
-- **Nothing prunes it.** Every render writes a new file and keeps the old one so
-  already-sent links keep working. It grows without bound — see the note in
-  CLAUDE.md; a cleanup job is still outstanding.
+Naming an invoice after its number alone would let anyone walk a day's sales and
+read customer names, numbers and amounts.
+
+Two things changed with the move off local disk, and both are worth knowing:
+
+- **The `no-store` and `noindex` headers are gone.** Cloudinary's CDN serves
+  these, not the API, so a leaked link can be cached or crawled in a way it
+  could not before. If that matters for your threat model, switch the upload to
+  `type: "authenticated"` and issue signed, expiring URLs.
+- **Nothing prunes old assets.** Every re-render uploads under a new public_id
+  and leaves the previous one in place, so links already sent keep working.
+  Storage grows without bound — the same outstanding cleanup job as before, now
+  against Cloudinary rather than a directory.
+
+`POST /api/admin/transactions/:id/invoice` re-renders one invoice and repoints
+the record without re-texting the customer.
 
 ---
 

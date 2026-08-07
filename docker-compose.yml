@@ -75,13 +75,9 @@ services:
       PUBLIC_API_URL: http://localhost:${API_PORT:-4100}
     ports:
       - "${API_PORT:-4100}:4100"
-    volumes:
-      # Rendered invoices. A named volume because regenerating an invoice writes
-      # a new file and leaves the old one in place, so links already texted to
-      # customers keep working -- losing the directory breaks every one of them.
-      # Mounted at the api package root's uploads/, which is where
-      # INVOICE_STORAGE_DIR resolves to by default.
-      - api-uploads:/repo/apps/api/uploads
+    # No volume for invoices any more: they are uploaded to Cloudinary rather
+    # than written to disk, so there is nothing local to keep. Set the
+    # CLOUDINARY_* variables in .env to exercise the invoice flow in the stack.
     healthcheck:
       # /api/v1/health answers 503 while Mongo is down, so this tracks the
       # dependency and not just the process. busybox wget, no curl in the image.
@@ -134,4 +130,3 @@ services:
 
 volumes:
   mongo-data:
-  api-uploads:

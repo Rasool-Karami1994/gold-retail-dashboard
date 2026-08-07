@@ -125,24 +125,15 @@ const schema = z.object({
   CHROME_EXECUTABLE_PATH: z.string().optional(),
 
   /**
-   * Where generated PDFs are written. Relative paths resolve to the api root.
+   * Cloudinary credentials. THE ONLY STORAGE FOR RENDERED INVOICES.
    *
-   * ON A HOST WITH AN EPHEMERAL FILESYSTEM (Render's default, Fly without a
-   * volume, any container that is replaced on deploy) THIS DIRECTORY DOES NOT
-   * SURVIVE A RESTART. Every invoice link already texted to a customer answers
-   * 404 after the next deploy, and nothing in the app notices -- the URL is
-   * still on the transaction. Mount a disk here, or move storage to an object
-   * store; the Cloudinary block below is the placeholder for the latter.
-   */
-  INVOICE_STORAGE_DIR: z.string().default("uploads/invoices"),
-
-  /**
-   * Cloudinary credentials for invoice storage.
+   * There is no local-disk path any more: Render's filesystem is ephemeral, so
+   * a PDF written there vanishes on the next deploy while `invoicePdfUrl` goes
+   * on pointing at it. services/invoice.ts uploads the buffer instead.
    *
-   * NOTHING READS THESE YET. Invoices are written to INVOICE_STORAGE_DIR on
-   * local disk (see services/invoice.ts). They are declared here so the three
-   * are validated as a set the moment someone wires the upload up, and so a
-   * deployment can carry them before the code lands.
+   * Optional at the schema level so `pnpm dev` works without an account -- the
+   * refinement below makes all three mandatory in production, and locally a
+   * missing set fails the render (recoverable) rather than the boot.
    */
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
@@ -181,8 +172,9 @@ const schema = z.object({
         "frontend origin exactly, e.g. https://g-dash.vercel.app",
     },
   )
-  // Cloudinary is all-or-nothing. Two of three is a deployment that will fail
-  // on its first upload rather than at boot.
+  // Cloudinary is all-or-nothing, and mandatory in production -- it is the only
+  // place invoices are stored. A partial set would boot happily and then fail
+  // on the first upload, which is a sale already recorded with no invoice.
   .refine(
     (config) => {
       const parts = [
@@ -190,12 +182,14 @@ const schema = z.object({
         config.CLOUDINARY_API_KEY,
         config.CLOUDINARY_API_SECRET,
       ].filter(Boolean).length;
-      return parts === 0 || parts === 3;
+      return config.NODE_ENV === "production" ? parts === 3 : parts === 0 || parts === 3;
     },
     {
       path: ["CLOUDINARY_CLOUD_NAME"],
       message:
-        "Set all three CLOUDINARY_* variables or none of them",
+        "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET " +
+        "are all required in production -- invoices have no other storage. " +
+        "Outside production, set all three or none.",
     },
   );
 
