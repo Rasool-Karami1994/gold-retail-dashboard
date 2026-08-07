@@ -108,6 +108,28 @@ const schema = z.object({
   KAVENEGAR_SENDER: z.string().optional(),
 
   /**
+   * Deliberately run the MOCK gateway in production. Off unless it says "true".
+   *
+   * READ THIS BEFORE SETTING IT. The mock delivers nothing and returns the
+   * one-time code in the API response, which the sign-in form then displays.
+   * With it on, anyone who knows a customer's mobile number can request a code,
+   * read it off their own screen, and sign in as that customer. OTP stops being
+   * authentication and becomes decoration.
+   *
+   * It exists because a launch without gateway credentials is a real situation
+   * -- a demo, or the window before Kavenegar approves the template -- and the
+   * alternative people reach for is worse: quietly defaulting to mock, shipping
+   * that hole, and not knowing. Making it an explicit variable is the
+   * difference between "we accepted this for the demo" and "we forgot".
+   *
+   * Unset it the moment KAVENEGAR_API_KEY arrives.
+   */
+  ALLOW_MOCK_SMS_IN_PRODUCTION: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+
+  /**
    * Public origin of this API, used to build the absolute invoice URL that
    * goes out by SMS. Must be reachable from a customer's phone -- localhost
    * is fine in dev and wrong everywhere else.
@@ -250,6 +272,65 @@ const smsProvider: "mock" | "kavenegar" =
       : parsed.data.KAVENEGAR_API_KEY
         ? "kavenegar"
         : "mock";
+
+/**
+ * Decide the mock-in-production question HERE, at boot, not at the first login.
+ *
+ * MockSmsProvider also refuses to construct in production, but it is built
+ * lazily -- the first time someone requests a code. That is far too late: the
+ * deploy goes green, the health check passes, and the fault surfaces days later
+ * as a customer who cannot sign in. Render's logs show a 502 on an OTP route
+ * and nothing that explains it.
+ *
+ * Checked against the RESOLVED provider rather than the raw env var, so the
+ * "no SMS_PROVIDER and no Kavenegar key" case -- the easiest one to deploy by
+ * accident -- is caught along with an explicit SMS_PROVIDER=mock.
+ */
+if (isProduction && smsProvider === "mock") {
+  if (!parsed.data.ALLOW_MOCK_SMS_IN_PRODUCTION) {
+    console.error(
+      [
+        "",
+        "NODE_ENV=production but no SMS gateway is configured.",
+        "",
+        "Customer sign-in is OTP-only, so the API would start, pass its health",
+        "check, and then fail every login. Refusing to start instead.",
+        "",
+        "Fix it one of two ways:",
+        "",
+        "  1. Real gateway (do this before real customers):",
+        "       SMS_PROVIDER=kavenegar",
+        "       KAVENEGAR_API_KEY=<key>",
+        "       KAVENEGAR_SENDER=<line>",
+        "",
+        "  2. Demo without a gateway, ACCEPTING that one-time codes are",
+        "     returned in API responses and anyone who knows a customer's",
+        "     number can sign in as them:",
+        "       ALLOW_MOCK_SMS_IN_PRODUCTION=true",
+        "",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+
+  // Opted in. Say so on every boot -- this is the state you forget you are in.
+  console.warn(
+    [
+      "",
+      "############################################################",
+      "#  MOCK SMS IS ACTIVE IN PRODUCTION                        #",
+      "#                                                          #",
+      "#  No text messages are being sent. One-time codes are     #",
+      "#  returned in API responses, so ANY visitor who knows a   #",
+      "#  customer's mobile number can sign in as that customer.  #",
+      "#                                                          #",
+      "#  Set KAVENEGAR_API_KEY and drop                          #",
+      "#  ALLOW_MOCK_SMS_IN_PRODUCTION to close this.             #",
+      "############################################################",
+      "",
+    ].join("\n"),
+  );
+}
 
 export const env = {
   ...parsed.data,

@@ -18,6 +18,12 @@ export interface AdminLoginResponse {
    * response omits it, which is why it is optional.
    */
   smsMock?: boolean;
+  /**
+   * `smsMock` AND production -- one-time codes are being returned in API
+   * responses on a live deployment. Separate from `smsMock` because mocking is
+   * unremarkable in development and an open door in production.
+   */
+  insecureOtp?: boolean;
 }
 
 /**

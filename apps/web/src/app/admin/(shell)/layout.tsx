@@ -1,5 +1,6 @@
 import { AdminSidebar } from "./admin-sidebar";
 import { AdminTopBar } from "./admin-topbar";
+import { SmsModeBanner } from "./sms-mode-banner";
 
 /**
  * Chrome for the signed-in admin area.
@@ -29,6 +30,7 @@ export default function AdminShellLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Above the top bar, not inside a page: it describes the whole
             deployment, and it renders nothing when SMS is real. */}
+        <SmsModeBanner />
         <AdminTopBar />
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>

@@ -13,6 +13,13 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "api", "dev"],
       "port": 4100
+    },
+    {
+      "name": "web-prod",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "web", "start"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

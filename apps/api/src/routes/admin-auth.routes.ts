@@ -47,6 +47,18 @@ adminAuthRouter.get(
      * on every page -- and admin-only because it describes how the deployment
      * is configured, which is nobody else's business.
      */
-    res.json({ admin, smsMock: env.smsIsMock });
+    /**
+     * `insecureOtp` separates the two very different reasons SMS can be mocked.
+     * On a developer's machine it is routine and a red banner every day is
+     * noise that gets tuned out. In production it means one-time codes are
+     * coming back in API responses and the customer login is effectively open,
+     * which is worth shouting about. The severity is decided here because the
+     * browser has no way to know which environment the API is running in.
+     */
+    res.json({
+      admin,
+      smsMock: env.smsIsMock,
+      insecureOtp: env.smsIsMock && env.isProduction,
+    });
   }),
 );

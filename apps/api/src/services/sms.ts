@@ -88,11 +88,15 @@ export class MockSmsProvider implements SmsProvider {
   readonly name = "mock";
 
   constructor() {
-    if (env.isProduction) {
+    // config/env.ts already decides this at boot and exits, which is where the
+    // explanation lives. This stays as a second gate for anything that builds a
+    // provider directly -- a script, a test -- without going through that path.
+    if (env.isProduction && !env.ALLOW_MOCK_SMS_IN_PRODUCTION) {
       throw new Error(
         "MockSmsProvider cannot be used in production -- it does not send " +
           "anything and it exposes OTP codes in API responses. " +
-          "Set SMS_PROVIDER=kavenegar.",
+          "Set SMS_PROVIDER=kavenegar, or ALLOW_MOCK_SMS_IN_PRODUCTION=true " +
+          "to accept that trade deliberately.",
       );
     }
   }

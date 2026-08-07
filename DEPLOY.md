@@ -8,6 +8,36 @@ invoice link it texts points at itself.
 
 ---
 
+## 0. The three run modes
+
+The same two apps run three different ways, and most confusing failures come
+from applying one mode's configuration to another. Pick the row you are in.
+
+| | Local dev | Docker Compose | Production (split domain) |
+| --- | --- | --- | --- |
+| Command | `pnpm dev` | `docker compose up` | Vercel + Render deploys |
+| Config read from | `apps/api/.env`, `apps/web/.env.local` | root `.env` + `docker-compose.yml` | each host's dashboard |
+| Web ↔ API | `localhost:3000` → `localhost:4100` | `localhost:3000` → `localhost:4100` | `app.example.com` → `api.example.com` |
+| API ↔ Mongo | `127.0.0.1:27017` | `mongo:27017` (service name) | Atlas connection string |
+| Same site? | Yes — cookie just works | Yes | **No** — needs `SameSite=None` + a shared parent domain |
+| `NODE_ENV` | `development` | `development` | `production` |
+| SMS | mock, code shown on screen | mock, code in the API log | Kavenegar (see §8) |
+| Invoices | Cloudinary | Cloudinary | Cloudinary |
+
+Three things change *behaviour*, not just values, when `NODE_ENV=production`:
+
+- The session cookie becomes `SameSite=None; Secure`, so both sides must be
+  HTTPS and the cookie stops working over plain http.
+- Mock SMS refuses to run unless explicitly allowed (§9).
+- Cloudinary credentials become mandatory at boot (§7).
+
+The per-app `.env` files and the root `.env` are **not** interchangeable: the
+first pair point at `127.0.0.1`, which inside a container is the container.
+README.md covers the Compose mode in full; the rest of this document is about
+the third column.
+
+---
+
 ## 1. Prerequisites
 
 | Thing | Why |
@@ -15,7 +45,8 @@ invoice link it texts points at itself.
 | Node 20+ and pnpm 9 | The workspace pins pnpm in `packageManager`. |
 | MongoDB 6+ | Atlas or self-hosted. |
 | Chrome or Chromium on the API host | Invoices are rendered by `puppeteer-core`, which drives an **already installed** browser rather than downloading one. |
-| A Kavenegar account | An API key, a sending line, and an approved template named `otp`. |
+| A Cloudinary account | Invoice PDFs are stored there, not on disk. Required in production — see §7. |
+| A Kavenegar account | An API key, a sending line, and an approved template named `otp`. Required in production unless you deliberately opt out — see §8. |
 
 ### The Chromium requirement
 
@@ -28,11 +59,18 @@ Install a browser and point at it if auto-detection misses:
 ```bash
 apt-get install -y chromium            # Debian/Ubuntu
 # then, in apps/api/.env
-CHROME_EXECUTABLE_PATH=/usr/bin/chromium
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ```
 
-Auto-detection covers the usual Linux, macOS and Windows locations — see
-`findChrome()` in `apps/api/src/services/invoice.ts`.
+`PUPPETEER_EXECUTABLE_PATH` is the name to use; `CHROME_EXECUTABLE_PATH` is this
+repo's older spelling and still works. Leave both unset and the resolver scans
+the Puppeteer browser cache, then the usual Linux, macOS and Windows install
+locations — see `resolveExecutablePath()` in `apps/api/src/services/invoice.ts`.
+
+**Render's Node runtime ships no browser**, so this is the one part of the API
+that does not work on a stock Node service. Install one during the build and
+point `PUPPETEER_EXECUTABLE_PATH` at it, or deploy the API from
+`apps/api/Dockerfile` instead, which already has Chromium and the Vazir fonts.
 
 ---
 
@@ -235,8 +273,23 @@ the record without re-texting the customer.
 
 ## 7a. Render's free tier
 
-512 MB of RAM, and the instance spins down after 15 minutes with no traffic. Two
-things follow.
+512 MB of RAM, and the instance spins down after 15 minutes with no traffic.
+Three things follow.
+
+**Tell your early testers about the cold start, before they hit it.** The first
+request after an idle period waits for the container to be recreated: expect
+**30–60 seconds**, occasionally more when Chromium has to warm up too. Nothing
+in the UI distinguishes that from a hang — the login button spins, the overview
+skeletons sit there, and the honest reading is "it's broken". Testers who have
+not been warned will report it as a bug, once each. It is worth a sentence in
+whatever message ships the link:
+
+> First load after a quiet spell takes up to a minute while the server wakes
+> up. After that it's normal speed.
+
+An uptime pinger (below) mostly removes this, but not entirely — free instances
+can still be recycled, and a pinger frequent enough to prevent every spin-down
+is against the spirit of the tier.
 
 **Point an uptime pinger at `GET /api/health`.** It always answers 200
 `{ "status": "ok" }`, makes no database call, and is mounted ahead of the body
@@ -259,7 +312,97 @@ resident between renders.
 
 ---
 
-## 8. Verify
+## 8. SMS, and going live before the gateway is ready
+
+Customer sign-in is OTP-only. There is no password to fall back on, so an API
+that cannot send a text cannot authenticate a single customer.
+
+**In production the API refuses to boot without a gateway.** Not a warning at
+startup and a 502 later — it exits, at deploy time, with the fix in the log.
+That is deliberate: the mock is chosen automatically whenever no Kavenegar key
+is present, so the easiest deployment to create by accident is one that looks
+healthy, passes its health check, and fails every login days later.
+
+```
+NODE_ENV=production but no SMS gateway is configured.
+Customer sign-in is OTP-only, so the API would start, pass its health
+check, and then fail every login. Refusing to start instead.
+```
+
+### The one-line switch, when credentials arrive
+
+```
+SMS_PROVIDER=kavenegar
+KAVENEGAR_API_KEY=<key>
+KAVENEGAR_SENDER=<line>
+```
+
+Strictly, `SMS_PROVIDER` is optional: the presence of `KAVENEGAR_API_KEY` is
+itself the signal, so adding the key alone flips it. Set it anyway — an explicit
+value is what stops a later "why is this mocked?" investigation.
+
+Restart the API. Nothing else changes: no rebuild, no frontend deploy. The
+admin banner disappears on the next `/me`, and `devOtpCode` stops appearing in
+responses because it is derived from what the mock returns, not from an env
+read at the call site.
+
+One-time codes need an **approved Kavenegar template** named `otp` whose first
+token is the code, delivered through `verify/lookup`. Iranian gateways will not
+carry an OTP on an ordinary sending line, so `KAVENEGAR_SENDER` is used for the
+invoice link and not for codes.
+
+### Launching without it, deliberately
+
+If the demo has to go up before the template is approved:
+
+```
+ALLOW_MOCK_SMS_IN_PRODUCTION=true
+```
+
+**Understand what this buys and costs.** No texts are sent. The one-time code
+comes back in the API response and the sign-in form displays it — so anyone who
+knows a customer's mobile number can request a code, read it off their own
+screen, and sign in as that customer. OTP stops being authentication.
+
+It is survivable for a closed demo with fake data. It is not survivable the
+moment a real customer's transaction history is in the database.
+
+Two things make the state hard to forget: the API prints a boxed warning on
+every boot, and the admin shell shows a red banner across the top of every page
+(amber in development, where mocking is unremarkable). Both come from the same
+`insecureOtp` flag on `/api/admin/auth/me`.
+
+---
+
+## 9. Limits to watch
+
+Free tiers fail by filling up quietly rather than by breaking loudly. Two
+ceilings are worth a calendar reminder rather than an alert.
+
+**Atlas free tier: 512 MB.** Transactions and customers are small documents, so
+the ceiling is months or years away at a single shop's volume — but it is a hard
+stop, not a throttle: writes start failing once it is reached. Check it
+occasionally rather than waiting to be surprised.
+
+```bash
+mongosh "$MONGO_URI" --quiet --eval 'const s=db.stats(); print((s.dataSize/1048576).toFixed(1)+" MB data, "+(s.storageSize/1048576).toFixed(1)+" MB storage")'
+```
+
+The two things that actually grow are `transactions` (one document per sale,
+with its payments embedded) and `otprequests`. The latter is self-limiting —
+the model carries a TTL index, so codes expire out on their own.
+
+**Cloudinary free tier: 25 GB storage / 25 GB monthly bandwidth.** Every render
+uploads a *new* asset and the superseded one is left in place on purpose, so a
+transaction re-rendered after each of four payments leaves five PDFs. At a few
+hundred KB each this is not a near-term problem, but nothing prunes it. If it
+ever matters, the old assets are identifiable: `invoicePdfUrl` on the
+transaction names the current one, and everything else under
+`g-dash/invoices/` with the same `INV-` prefix is superseded.
+
+---
+
+## 10. Verify
 
 ```bash
 curl -fsS https://shop.example.com/api/v1/health
@@ -275,8 +418,9 @@ a bad gateway key. The invoice link in the success panel should open a PDF.
 ## Backups
 
 The database is the only thing that matters; everything else is rebuildable.
-`uploads/invoices` is worth backing up too, but only to keep old SMS links alive
-— every invoice can be re-rendered from its transaction.
+Invoices live in Cloudinary and every one of them can be re-rendered from its
+transaction, so they need no separate backup — losing them costs the *old* SMS
+links, not the records.
 
 ```bash
 mongodump --uri "$MONGO_URI" --archive=g-dash-$(date +%F).gz --gzip
