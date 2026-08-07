@@ -48,6 +48,12 @@ export interface StatCardProps {
   format?: (value: number) => string;
   /** Rendered after the number, smaller and muted: "تومان", "گرم". */
   unit?: React.ReactNode;
+  /**
+   * A line under the figure, in the muted secondary style: typically the amount
+   * spelled out by `formatTomanInWords`, which is the one thing grouping
+   * separators do not catch -- a whole extra zero.
+   */
+  hint?: React.ReactNode;
   /** Sits opposite the figure. Any 20-24px node. */
   icon?: React.ReactNode;
   tone?: StatTone;
@@ -71,6 +77,7 @@ export function StatCard({
   value,
   format = formatNumber,
   unit,
+  hint,
   icon,
   tone = "neutral",
   loading = false,
@@ -102,21 +109,24 @@ export function StatCard({
             {loading ? (
               <span className="h-9 w-48 animate-pulse rounded bg-surface-raised" />
             ) : (
-              // baseline so the unit sits on the number's baseline rather than
-              // floating against the top of a much larger glyph.
-              <p className="flex items-baseline gap-2">
-                <span
-                  className={cn(
-                    "text-3xl font-bold tabular-nums",
-                    toneText[tone],
+              <div className="flex min-w-0 flex-col gap-1">
+                {/* baseline so the unit sits on the number's baseline rather
+                    than floating against the top of a much larger glyph. */}
+                <p className="flex items-baseline gap-2">
+                  <span
+                    className={cn(
+                      "text-3xl font-bold tabular-nums",
+                      toneText[tone],
+                    )}
+                  >
+                    {format(value)}
+                  </span>
+                  {unit && (
+                    <span className="text-sm font-normal text-fg-muted">{unit}</span>
                   )}
-                >
-                  {format(value)}
-                </span>
-                {unit && (
-                  <span className="text-sm font-normal text-fg-muted">{unit}</span>
-                )}
-              </p>
+                </p>
+                {hint && <p className="text-xs text-fg-muted">{hint}</p>}
+              </div>
             )}
 
             {icon && (

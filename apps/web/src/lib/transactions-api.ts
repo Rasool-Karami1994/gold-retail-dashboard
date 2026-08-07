@@ -166,6 +166,25 @@ export function createTransaction(input: CreateTransactionInput) {
 }
 
 /**
+ * Records one instalment against an existing transaction.
+ *
+ * Answers with the whole updated transaction, so the caller can repaint the
+ * figures -- and read the new `status` -- without a second request.
+ *
+ * Two failures are worth handling by status rather than as a generic error:
+ * 409 means the invoice was already settled, and 400 means the amount exceeds
+ * the balance, with `remainingAmount` on the error body saying what would have
+ * fit. Both can happen to a form that was correct when it was opened, because
+ * somebody else can pay in the meantime.
+ */
+export function addPayment(id: string, input: TransactionPaymentInput) {
+  return apiFetch<TransactionDetail>(
+    `/api/admin/transactions/${encodeURIComponent(id)}/payments`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+/**
  * Renders the invoice PDF synchronously and returns its URL.
  *
  * The create endpoint already starts this in the background, so this is the

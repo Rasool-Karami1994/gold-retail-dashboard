@@ -68,6 +68,7 @@ export type TransactionColumnId =
  * be indirection with a single caller.
  */
 const transactionDetail = (id: string) => `/admin/transactions/${id}`;
+const addPaymentHref = (id: string) => `/admin/transactions/${id}/add-payment`;
 
 const TYPE_LABELS: Record<TransactionKind, string> = {
   sell: "فروش",
@@ -245,15 +246,31 @@ const COLUMNS: Record<TransactionColumnId, Column<TransactionTableRow>> = {
     id: "details",
     header: <span className="sr-only">عملیات</span>,
     cell: (row) => (
-      <Link
-        href={transactionDetail(row.id)}
-        className={buttonStyles({ variant: "secondary", size: "sm" })}
-      >
-        جزئیات
-      </Link>
+      <span className="flex items-center justify-end gap-2">
+        {/*
+          Only on an open invoice, and absent rather than disabled on a settled
+          one: a greyed-out button invites the question "why can't I?", where
+          nothing at all reads as "there is nothing left to pay" -- which the
+          status badge in the same row already says.
+        */}
+        {row.status === "open" && (
+          <Link
+            href={addPaymentHref(row.id)}
+            className={buttonStyles({ variant: "primary", size: "sm" })}
+          >
+            ثبت پرداخت
+          </Link>
+        )}
+        <Link
+          href={transactionDetail(row.id)}
+          className={buttonStyles({ variant: "secondary", size: "sm" })}
+        >
+          جزئیات
+        </Link>
+      </span>
     ),
     align: "end",
-    width: "6rem",
+    width: "13rem",
   },
 };
 

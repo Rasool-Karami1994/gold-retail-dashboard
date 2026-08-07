@@ -6,7 +6,18 @@ export class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** Field-level problems, as the validator produces them: [{ path, message }]. */
     readonly details?: unknown,
+    /**
+     * Extra facts the client needs to act on the failure, merged into the error
+     * body alongside `message`.
+     *
+     * Separate from `details` because that is a list of field complaints and
+     * this is not -- the rejected-payment case has to carry the remaining
+     * balance so the form can say what would have fit, and burying a number the
+     * UI must render inside a validation array would be the wrong shape.
+     */
+    readonly meta?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "HttpError";
@@ -35,6 +46,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     error: {
       message,
       ...(err instanceof HttpError && err.details ? { details: err.details } : {}),
+      ...(err instanceof HttpError && err.meta ? err.meta : {}),
       // Stack traces leak file paths and dependency versions; dev only.
       ...(env.isProduction ? {} : { stack: (err as Error)?.stack }),
     },

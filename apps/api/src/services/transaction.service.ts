@@ -75,20 +75,42 @@ export async function createTransaction(
 }
 
 /**
- * Adds one instalment and lets the model re-derive `status`.
+ * Adds one instalment, translating the model's outcome into HTTP.
  *
- * Goes through the document API rather than `$push`, because query-level
- * updates skip the pre-validate hook and would leave `status` stale -- see the
- * note on `addPayment` in transaction.model.ts.
+ * The guards live in the single atomic update rather than here, because a check
+ * in this function would be a read the write cannot trust -- see the note on
+ * `addPayment` in transaction.model.ts.
  */
 export async function addPayment(
   id: string,
   payment: PaymentInput,
 ): Promise<TransactionDocument> {
-  const transaction = await getTransactionById(id);
-  await transaction.addPayment(payment);
-  await transaction.populate("customer", CUSTOMER_PROJECTION);
-  return transaction;
+  const outcome = await TransactionModel.addPayment(id, payment);
+
+  if (!outcome.ok) {
+    if (outcome.reason === "not-found") {
+      throw new HttpError(404, "Transaction not found");
+    }
+
+    if (outcome.reason === "settled") {
+      throw new HttpError(
+        409,
+        "This transaction is already settled, so it cannot take another payment",
+      );
+    }
+
+    // The balance goes in the body: the client needs it to tell the user what
+    // WOULD have fit, and re-fetching to find out would race the next payment.
+    throw new HttpError(
+      400,
+      `Payment exceeds the remaining balance of ${outcome.remainingAmount}`,
+      [{ path: "amount", message: "Payment exceeds the remaining balance" }],
+      { remainingAmount: outcome.remainingAmount },
+    );
+  }
+
+  await outcome.transaction.populate("customer", CUSTOMER_PROJECTION);
+  return outcome.transaction;
 }
 
 export async function getTransactionById(id: string): Promise<TransactionDocument> {

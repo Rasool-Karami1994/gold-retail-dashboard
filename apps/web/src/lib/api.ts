@@ -58,6 +58,15 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     readonly details?: unknown,
+    /**
+     * The whole `error` object from the response.
+     *
+     * Some failures carry a fact the UI has to render, not just describe: a
+     * rejected payment comes back with the balance that WOULD have fit. Kept as
+     * the raw object rather than a named field per case, so a new one does not
+     * mean touching this class.
+     */
+    readonly body?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -96,6 +105,7 @@ export async function apiFetch<T>(
       response.status,
       payload?.error?.message ?? `Request failed (${response.status})`,
       payload?.error?.details,
+      payload?.error,
     );
   }
 

@@ -1,10 +1,10 @@
 import {
   Schema,
+  Types,
   model,
   type HydratedDocument,
   type InferSchemaType,
   type Model,
-  type Types,
 } from "mongoose";
 import { nextSequence } from "./counter.model.js";
 import { CustomerModel } from "./customer.model.js";
@@ -441,16 +441,35 @@ export interface TransactionVirtuals {
   balanceDirection: "customer-owes-shop" | "shop-owes-customer" | "none";
 }
 
-export interface TransactionMethods {
-  addPayment(payment: {
-    method: PaymentMethod;
-    amount: number;
-    bankType?: BankType;
-    destinationCard?: string;
-    destinationIban?: string;
-    paidAt?: Date;
-  }): Promise<TransactionDocument>;
+export interface AddPaymentInput {
+  method: PaymentMethod;
+  amount: number;
+  bankType?: BankType;
+  destinationCard?: string;
+  destinationIban?: string;
+  paidAt?: Date;
 }
+
+/**
+ * Why the instalment was or was not recorded.
+ *
+ * A result rather than an exception because two of the three failures are
+ * ordinary answers the API has to phrase differently -- 409 for an invoice that
+ * is already settled, 400 carrying the balance for one that would be overpaid.
+ */
+export type AddPaymentOutcome =
+  | { ok: true; transaction: TransactionDocument }
+  | { ok: false; reason: "not-found" }
+  | { ok: false; reason: "settled"; transaction: TransactionDocument }
+  | {
+      ok: false;
+      reason: "exceeds-remaining";
+      remainingAmount: number;
+      transaction: TransactionDocument;
+    };
+
+/** No document methods. `addPayment` is a static -- see the note on it. */
+export interface TransactionMethods {}
 
 export type TransactionDocument = HydratedDocument<
   Transaction,
@@ -459,6 +478,13 @@ export type TransactionDocument = HydratedDocument<
 
 export interface TransactionModelType
   extends Model<Transaction, {}, TransactionMethods, TransactionVirtuals> {
+  /**
+   * The ONLY supported way to record an instalment. Atomic, and it re-derives
+   * `status` itself -- see the note on the implementation for why a
+   * load-mutate-save was not good enough.
+   */
+  addPayment(id: string, input: AddPaymentInput): Promise<AddPaymentOutcome>;
+
   findByCustomerMobile(
     mobile: string,
     filter?: Record<string, unknown>,
@@ -472,19 +498,118 @@ export interface TransactionModelType
 }
 
 /**
- * Records an instalment and re-derives `status`.
+ * Records an instalment and re-derives `status`, in ONE database operation.
  *
- * IMPORTANT: `status` is kept correct by the document pre-validate hook, which
- * query-level updates do NOT run. `Transaction.updateOne({ $push: { payments }})`
- * will write the payment and leave `status` stale. Always add payments through
- * this method (or load the document, mutate, and `save()`).
+ * WHY THIS IS NOT A LOAD-MUTATE-SAVE. It used to be, and that read-then-write
+ * had a race that money cares about. Two payments arriving together each loaded
+ * the document, each saw the same `payments`, and each computed `status` from
+ * its own view. Mongoose sends the array change as `$push`, so both instalments
+ * survived -- but `status` went out as a plain `$set` from whichever request
+ * finished last. Two payments of 50 against a total of 100 left the invoice
+ * fully paid and still marked `open`, and no later read would notice.
+ *
+ * So the guard and the recomputation are expressed as the update itself:
+ *
+ *   - the filter admits only an `open` transaction whose remaining balance
+ *     covers the amount, so a settled invoice and an overpayment are rejected
+ *     by not matching rather than by a check that can go stale between the read
+ *     and the write;
+ *   - the pipeline appends the instalment and then re-derives `status` from
+ *     the array it just produced, inside the same operation.
+ *
+ * THE PRE-VALIDATE HOOK DOES NOT RUN HERE, which is exactly the hazard the note
+ * on the model warns about -- a query update that leaves `status` stale. It is
+ * safe only because the pipeline below recomputes `status` itself. If you add a
+ * field the hook derives, derive it here too or the warning becomes true again.
+ *
+ * Returns an outcome rather than throwing, because "already settled" and
+ * "exceeds the balance" are answers the caller has to turn into different HTTP
+ * statuses, and one of them carries the remaining amount.
  */
-transactionSchema.methods.addPayment = async function (
-  this: TransactionDocument,
-  payment: Parameters<TransactionMethods["addPayment"]>[0],
-) {
-  this.payments.push({ paidAt: new Date(), ...payment });
-  return this.save();
+// Uses TransactionModel rather than `this`: Mongoose types a static's `this` as
+// the base Model, which loses the return types this function depends on. The
+// model is defined at the bottom of the file and exists long before any caller.
+transactionSchema.statics.addPayment = async function (
+  id: string,
+  input: AddPaymentInput,
+): Promise<AddPaymentOutcome> {
+  const self = TransactionModel;
+  if (!Types.ObjectId.isValid(id)) return { ok: false, reason: "not-found" };
+
+  // Built here rather than trusting the caller's object wholesale: the
+  // subdocument's own pre-validate hook -- which strips bank fields off a cash
+  // row -- does not run for a pipeline update either.
+  const payment = {
+    _id: new Types.ObjectId(),
+    method: input.method,
+    amount: input.amount,
+    paidAt: input.paidAt ?? new Date(),
+    ...(input.method === "bank"
+      ? {
+          ...(input.bankType ? { bankType: input.bankType } : {}),
+          ...(input.destinationCard
+            ? { destinationCard: input.destinationCard }
+            : {}),
+          ...(input.destinationIban
+            ? { destinationIban: input.destinationIban }
+            : {}),
+        }
+      : {}),
+  };
+
+  /** Total minus everything paid so far, as an aggregation expression. */
+  const remainingExpr = {
+    $subtract: ["$totalAmount", { $sum: "$payments.amount" }],
+  };
+
+  const updated = await self.findOneAndUpdate(
+    {
+      _id: new Types.ObjectId(id),
+      status: "open",
+      // The same tolerance settlement uses. A UI that offers "pay the rest"
+      // can compute a figure a fraction of a Toman over the balance, and
+      // refusing that would be arithmetic pedantry rather than a guard.
+      $expr: {
+        $lte: [input.amount, { $add: [remainingExpr, SETTLEMENT_TOLERANCE] }],
+      },
+    },
+    [
+      { $set: { payments: { $concatArrays: ["$payments", [payment]] } } },
+      {
+        // Reads the array the stage above just wrote, so the new instalment is
+        // counted. This is the pre-validate hook's rule, expressed in Mongo.
+        $set: {
+          status: {
+            $cond: [
+              { $lte: [remainingExpr, SETTLEMENT_TOLERANCE] },
+              "settled",
+              "open",
+            ],
+          },
+          // Set explicitly rather than relying on Mongoose's timestamps with a
+          // pipeline update, which is not a behaviour worth assuming.
+          updatedAt: "$$NOW",
+        },
+      },
+    ],
+    { new: true },
+  );
+
+  if (updated) return { ok: true, transaction: updated };
+
+  // Nothing matched. Re-read to say WHY, so the caller can answer 404, 409 or
+  // 400 rather than a single unhelpful failure.
+  const current = await self.findById(id);
+  if (!current) return { ok: false, reason: "not-found" };
+  if (current.status === "settled") {
+    return { ok: false, reason: "settled", transaction: current };
+  }
+  return {
+    ok: false,
+    reason: "exceeds-remaining",
+    remainingAmount: current.remainingAmount,
+    transaction: current,
+  };
 };
 
 transactionSchema.statics.findByCustomerMobile = async function (

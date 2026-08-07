@@ -113,8 +113,14 @@ pnpm --filter api seed:admin
   Toman on write and settlement comparisons use a tolerance — never `=== 0`.
 - **`totalAmount`, `invoiceNumber` and `status` on a transaction are derived**
   by the model's pre-validate hook. Never accept them from a request body, and
-  never add payments with `$push` — query updates skip document middleware and
-  leave `status` stale. Use `addPayment()`.
+  never add payments with a bare `$push` — query updates skip document
+  middleware and leave `status` stale. Use `TransactionModel.addPayment()`,
+  which is a static, not a document method: it is one conditional pipeline
+  update that appends the instalment, re-derives `status` from the array it
+  just wrote, and refuses a settled invoice or an overpayment in the filter.
+  A load-mutate-save cannot do that — two payments arriving together each
+  computed `status` from their own stale read, and 50 + 50 against a total of
+  100 left the invoice fully paid and still `open`.
 - **`remainingAmount` is a virtual, so no aggregation pipeline can read it.**
   The pipeline equivalent is `withRemainingFields()` in `transaction.model.ts`,
   placed directly under the virtual it mirrors. Change one, change the other.
@@ -238,11 +244,13 @@ Never push unless asked.
   production. Deleting a file by hand breaks the link on a live record; the fix
   is `POST /api/admin/transactions/:id/invoice`, which re-renders and repoints
   `invoicePdfUrl` without re-texting the customer.
-- **Recording a payment has no screen.** `POST /api/admin/transactions/:id/payments`
-  exists and `addPayment()` keeps `status` honest, but the detail page only
-  reads. That endpoint plus a form on `/admin/transactions/[id]` is the natural
-  next step — and remember to re-render the invoice afterwards, since the
-  printed one still shows the old balance.
+- **A recorded payment leaves the invoice PDF stale.** Recording one now has a
+  screen — `/admin/transactions/[id]/add-payment`, reached from the row action
+  on any open invoice — but nothing re-renders the PDF, so the printed copy
+  still shows the balance as it was. `POST /api/admin/transactions/:id/invoice`
+  re-renders and repoints `invoicePdfUrl` without re-texting the customer;
+  calling it after a payment is the fix, at the cost of a Chromium render per
+  instalment.
 - **Inconsistent range params.** `/stats/*` takes `from`/`to`;
   `/admin/transactions` takes `dateFrom`/`dateTo`. Both were specified that way.
   `lib/stats-api.ts` and `lib/transactions-api.ts` hide the difference from
