@@ -36,7 +36,7 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 ```
 
-Start MongoDB (skip if you're pointing `MONGODB_URI` at Atlas or an existing server):
+Start MongoDB (skip if you're pointing `MONGO_URI` at Atlas or an existing server):
 
 ```bash
 pnpm db:up
@@ -112,7 +112,7 @@ http://localhost:3000 and the API on http://localhost:4100.
 > fixed; `WEB_PORT`, `API_PORT` and `MONGO_PORT` in `.env` decide only what they
 > are published as on the host, and 4100 is the default because 4000 is commonly
 > taken. Change `API_PORT` and `NEXT_PUBLIC_API_URL`, `PUBLIC_API_URL` and
-> `CORS_ORIGIN` all follow from it automatically — that derivation lives in
+> `ALLOWED_ORIGIN` all follow from it automatically — that derivation lives in
 > `docker-compose.yml` so the four cannot drift apart.
 
 Then create the admin account, once, in the running API container:
@@ -213,7 +213,7 @@ restart. `JWT_SECRET` is the reverse: read at run time, so a restart is enough.
 **The root `.env` is for containers only.** `apps/api/.env` and
 `apps/web/.env.local` are for `pnpm dev` on the host and are not read by
 Compose — they point at `127.0.0.1`, which inside a container is the container.
-Values that depend on the network (`MONGODB_URI`, `CORS_ORIGIN`,
+Values that depend on the network (`MONGO_URI`, `ALLOWED_ORIGIN`,
 `PUBLIC_API_URL`) are set in `docker-compose.yml`, where they override anything
 of the same name in `.env`.
 

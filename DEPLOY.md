@@ -146,9 +146,48 @@ server {
 The API already sets `trust proxy`, so `X-Forwarded-*` is what makes rate
 limiting and logs see the real client address rather than the proxy's.
 
-If the two apps must live on different hosts, set `CORS_ORIGIN` to the web
-origin and `COOKIE_DOMAIN` to the shared parent domain (`.example.com`) — and
-note that cross-site cookies need HTTPS on both.
+### Different hosts (Vercel + Render)
+
+Set `ALLOWED_ORIGIN` to the web app's exact origin — scheme, host, port, no
+trailing slash — and `NODE_ENV=production` on the API. That combination makes
+CORS echo the origin back with `Access-Control-Allow-Credentials: true` and
+switches the session cookie to `SameSite=None; Secure`, which is what lets the
+browser attach it to a cross-site request at all. Both sides must be HTTPS;
+`SameSite=None` without `Secure` is rejected outright.
+
+Vercel gives each branch its own hostname, so preview deployments are separate
+origins. `ALLOWED_ORIGIN` takes a comma-separated list:
+
+```
+ALLOWED_ORIGIN=https://app.example.com,https://app-git-dev-you.vercel.app
+```
+
+**That is not sufficient on its own.** CORS governs whether the browser will
+send the cookie *to the API* and hand your code the response. It does nothing
+about which origin can *read* the cookie: the browser files it under the API's
+host, so `app.vercel.app` never sees it.
+
+`apps/web/src/middleware.ts` reads that cookie directly to decide which page to
+render. On unrelated domains it sees nothing, treats every visitor as signed
+out, and bounces them back to the login page in a loop — while the API happily
+authenticates the same user's XHRs.
+
+So the two apps need a shared registrable domain:
+
+| | |
+| --- | --- |
+| `api.example.com` (Render) | `COOKIE_DOMAIN=.example.com` |
+| `app.example.com` (Vercel) | `ALLOWED_ORIGIN=https://app.example.com` |
+
+Both are custom domains; the free `*.onrender.com` and `*.vercel.app`
+hostnames cannot work this way, because they are different registrable domains
+and the public suffix list forbids a cookie scoped to `.vercel.app`.
+
+If you must ship on the free hostnames, the middleware has to stop gating on
+the cookie and let the API's 401s drive redirects from the client instead. No
+data is exposed either way — the middleware is a redirect layer and the API
+re-checks every request — but the guard has to be rewritten rather than
+configured.
 
 ---
 
@@ -156,6 +195,18 @@ note that cross-site cookies need HTTPS on both.
 
 Invoices are written to `INVOICE_STORAGE_DIR` (default `uploads/invoices`) and
 served by the API itself at `/api/invoices/:filename`.
+
+> **On Render, this directory does not survive a deploy.** The default
+> filesystem is ephemeral and is rebuilt on every deploy and restart. The PDFs
+> disappear; the links already texted to customers start answering 404; and
+> nothing in the app notices, because `invoicePdfUrl` is still recorded on the
+> transaction. Attach a Render disk and point `INVOICE_STORAGE_DIR` at its
+> mount path before going live. `POST /api/admin/transactions/:id/invoice`
+> re-renders one invoice at a time, which is a recovery tool, not a migration.
+>
+> The `CLOUDINARY_*` variables in `.env.example` are reserved for moving this
+> to an object store. Nothing reads them yet — `services/invoice.ts` still
+> writes to disk.
 
 **They are served by the API on purpose, not by the proxy.** The route sets
 `Content-Disposition`, checks the filename against a strict pattern, and
@@ -199,5 +250,5 @@ The database is the only thing that matters; everything else is rebuildable.
 — every invoice can be re-rendered from its transaction.
 
 ```bash
-mongodump --uri "$MONGODB_URI" --archive=g-dash-$(date +%F).gz --gzip
+mongodump --uri "$MONGO_URI" --archive=g-dash-$(date +%F).gz --gzip
 ```

@@ -63,13 +63,15 @@ services:
       #
       # The service name is the whole point: `localhost` here is the API
       # container, which runs no database.
-      MONGODB_URI: mongodb://mongo:27017/g-dash
+      MONGO_URI: mongodb://mongo:27017/g-dash
       PORT: 4100
-      # Both of these are read by a BROWSER or a PHONE, never by another
-      # container, so they must be host-reachable. CORS_ORIGIN is the origin the
-      # web app is served from; PUBLIC_API_URL is the origin of the invoice link
-      # sent by SMS.
-      CORS_ORIGIN: http://localhost:${WEB_PORT:-3000}
+      # All three are read by a BROWSER or a PHONE, never by another container,
+      # so they must be host-reachable. ALLOWED_ORIGIN is the origin the web app
+      # is served from and the one CORS echoes back; APP_BASE_URL is the same
+      # value under the name the API uses for it; PUBLIC_API_URL is the origin
+      # of the invoice link sent by SMS.
+      ALLOWED_ORIGIN: http://localhost:${WEB_PORT:-3000}
+      APP_BASE_URL: http://localhost:${WEB_PORT:-3000}
       PUBLIC_API_URL: http://localhost:${API_PORT:-4100}
     ports:
       - "${API_PORT:-4100}:4100"

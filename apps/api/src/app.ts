@@ -25,10 +25,13 @@ export function createApp(): Express {
   app.disable("x-powered-by");
 
   app.use(helmet());
+  // `credentials: true` is required for the browser to send and receive the
+  // httpOnly auth cookies. It also forbids `origin: "*"` -- the spec rejects a
+  // wildcard on a credentialed request -- so the allowlist has to be explicit,
+  // which is what ALLOWED_ORIGIN is for.
   app.use(
     cors({
-      origin: env.corsOrigins,
-      // Required for the browser to send and receive the httpOnly auth cookies.
+      origin: env.allowedOrigins,
       credentials: true,
     }),
   );
