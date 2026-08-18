@@ -87,23 +87,26 @@ export function normalizeIban(value: string): string {
 }
 
 export const PAYMENT_METHODS = ["cash", "bank"] as const;
-export const BANK_TYPES = ["paya", "card-to-card", "bridge"] as const;
+export const BANK_TYPES = ["paya", "card-to-card", "bridge", "satna"] as const;
 
 /**
  * Which destination each bank route records.
  *
- * A card-to-card transfer names a card; paya and bridge settle to an account
- * and have no card involved. Everything that renders or validates the field
- * reads this rather than testing the bankType inline, so the form, the schema
- * and the payload builder cannot disagree about which one a route uses.
+ * A card-to-card transfer names a card. Paya, bridge and satna all settle to
+ * an account and have no card involved. Everything that renders or validates
+ * the field reads this rather than testing the bankType inline, so the form,
+ * the schema and the payload builder cannot disagree about which a route uses.
  */
 export function destinationKindFor(
   bankType: string | undefined | null,
 ): "card" | "iban" | null {
   if (bankType === "card-to-card") return "card";
-  if (bankType === "paya" || bankType === "bridge") return "iban";
+  if (bankType === "paya" || bankType === "bridge" || bankType === "satna") {
+    return "iban";
+  }
   return null;
 }
+
 export const TRANSACTION_TYPES = ["sell", "buy"] as const;
 export const GOLD_TYPES = ["melted", "new", "second-hand"] as const;
 
@@ -134,8 +137,8 @@ export const paymentSchema = z
     }
 
     /**
-     * Paya and bridge settle to an account, so they record a Sheba and never a
-     * card. Validated here rather than left to the API: it rejects the wrong
+     * Paya, bridge and satna settle to an account, so they record a Sheba and
+     * never a card. Validated here rather than left to the API: it rejects the wrong
      * one outright, and a 400 surfacing as a whole-form error is a worse way to
      * learn it than a message on the field.
      */
@@ -198,6 +201,12 @@ export const transactionSchema = z.object({
       .number({ invalid_type_error: "قیمت روز طلا را وارد کنید" })
       .nonnegative("قیمت نمی‌تواند منفی باشد"),
   ),
+  profitPercentage: numeric(
+    z
+      .number({ invalid_type_error: "درصد سود را وارد کنید" })
+      .min(0, "درصد سود نمی‌تواند منفی باشد")
+      .max(100, "درصد سود نمی‌تواند بیشتر از ۱۰۰ باشد"),
+  ),
   payments: z.array(paymentSchema),
 });
 
@@ -216,6 +225,43 @@ export type TransactionOutput = z.output<typeof transactionSchema>;
  */
 export type TransactionFormValues = z.input<typeof transactionSchema>;
 export type PaymentFormValues = TransactionFormValues["payments"][number];
+
+/**
+ * The deal's total, from its inputs.
+ *
+ * Mirrors the model's pre-validate hook exactly -- same order of operations,
+ * same rounding at each step -- because this is what the cashier reads before
+ * committing and the two disagreeing by a Toman is a support call. Change one,
+ * change the other.
+ */
+export function computeTotals(input: {
+  goldWeightGrams: unknown;
+  dailyGoldPricePerGram: unknown;
+  profitPercentage: unknown;
+  type: unknown;
+}): { baseAmount: number; profitAmount: number; totalAmount: number } {
+  const grams = toNumber(input.goldWeightGrams);
+  const perGram = toNumber(input.dailyGoldPricePerGram);
+  const percent = toNumber(input.profitPercentage);
+
+  if (!Number.isFinite(grams) || !Number.isFinite(perGram)) {
+    return { baseAmount: 0, profitAmount: 0, totalAmount: 0 };
+  }
+
+  const baseAmount = Math.round(grams * perGram);
+  const profitAmount = Math.round(
+    baseAmount * ((Number.isFinite(percent) ? percent : 0) / 100),
+  );
+
+  return {
+    baseAmount,
+    profitAmount,
+    // The sign follows the direction of the deal: the shop's margin is added
+    // to what a customer pays and withheld from what the shop hands over.
+    totalAmount:
+      input.type === "buy" ? baseAmount - profitAmount : baseAmount + profitAmount,
+  };
+}
 
 export const emptyPayment: PaymentFormValues = {
   method: "cash",
@@ -242,6 +288,7 @@ export const BANK_TYPE_LABELS: Record<(typeof BANK_TYPES)[number], string> = {
   paya: "پایا",
   "card-to-card": "کارت به کارت",
   bridge: "پل",
+  satna: "ساتنا",
 };
 
 export const METHOD_LABELS: Record<(typeof PAYMENT_METHODS)[number], string> = {

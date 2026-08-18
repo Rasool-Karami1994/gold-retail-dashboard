@@ -95,10 +95,10 @@ const paymentSchema = z
         message: "card-to-card records a destinationCard, not an IBAN",
       });
     }
-    if (
-      (payment.bankType === "paya" || payment.bankType === "bridge") &&
-      payment.destinationCard
-    ) {
+    // Every bank route except card-to-card settles to an account, so listing
+    // the card-bearing one is the definition that does not need revisiting
+    // each time a transfer type is added.
+    if (payment.bankType && payment.bankType !== "card-to-card" && payment.destinationCard) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["destinationCard"],
@@ -120,6 +120,18 @@ export const createTransactionSchema = z.object({
   dailyGoldPricePerGram: z
     .number()
     .nonnegative("Price per gram cannot be negative"),
+  /**
+   * The shop's margin. Absent means 0, which is what every transaction written
+   * before this field existed effectively had.
+   *
+   * `totalAmount` is still NOT accepted here -- see the note above. The margin
+   * is an input to the model's calculation, not a way to name the answer.
+   */
+  profitPercentage: z
+    .number()
+    .min(0, "Profit percentage cannot be negative")
+    .max(100, "Profit percentage cannot exceed 100")
+    .default(0),
   // Absent and [] both mean "nothing paid yet".
   payments: z.array(paymentSchema).default([]),
   invoicePdfUrl: z.string().trim().url().nullish(),

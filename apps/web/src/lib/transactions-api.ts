@@ -26,6 +26,10 @@ export interface TransactionRow {
   goldType: "melted" | "new" | "second-hand";
   goldWeightGrams: number;
   dailyGoldPricePerGram: number;
+  /** 0 on anything recorded before margins existed. */
+  profitPercentage: number;
+  /** The margin in Toman, as it was when the invoice was written. */
+  profitAmount: number;
   totalAmount: number;
   paidAmount: number;
   remainingAmount: number;
@@ -94,10 +98,10 @@ export function fetchTransactions(
 export interface TransactionPayment {
   method: "cash" | "bank";
   amount: number;
-  bankType?: "paya" | "card-to-card" | "bridge";
+  bankType?: "paya" | "card-to-card" | "bridge" | "satna";
   /** card-to-card only. */
   destinationCard?: string;
-  /** paya and bridge only -- they settle to an account, not a card. */
+  /** Every other bank route -- they settle to an account, not a card. */
   destinationIban?: string;
   paidAt: string;
 }
@@ -135,10 +139,10 @@ export interface TransactionPaymentInput {
   method: "cash" | "bank";
   amount: number;
   /** Required by the API for bank payments, rejected on cash ones. */
-  bankType?: "paya" | "card-to-card" | "bridge";
-  /** card-to-card only; the API rejects it on paya and bridge. */
+  bankType?: "paya" | "card-to-card" | "bridge" | "satna";
+  /** card-to-card only; the API rejects it on the account-settled routes. */
   destinationCard?: string;
-  /** paya and bridge only; the API rejects it on card-to-card. */
+  /** Every other bank route; the API rejects it on card-to-card. */
   destinationIban?: string;
 }
 
@@ -155,6 +159,7 @@ export interface CreateTransactionInput {
   goldType: "melted" | "new" | "second-hand";
   goldWeightGrams: number;
   dailyGoldPricePerGram: number;
+  profitPercentage: number;
   payments: TransactionPaymentInput[];
 }
 

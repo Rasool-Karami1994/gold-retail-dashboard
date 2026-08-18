@@ -16,11 +16,13 @@ import {
   Card,
   CardContent,
   CurrencyInput,
+  PercentInput,
   Select,
   buttonStyles,
 } from "@/components/ui";
 import { ApiError } from "@/lib/api";
-import { formatToman } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import { formatPercent, formatToman, formatTomanInWords } from "@/lib/format";
 import {
   createTransaction,
   transactionKeys,
@@ -37,6 +39,7 @@ import {
   GOLD_TYPE_LABELS,
   TRANSACTION_TYPES,
   TYPE_LABELS,
+  computeTotals,
   destinationKindFor,
   normalizeCard,
   normalizeIban,
@@ -104,6 +107,9 @@ export function NewTransactionForm() {
       goldType: "",
       goldWeightGrams: "",
       dailyGoldPricePerGram: "",
+      // "0", not "": the margin is genuinely zero until someone says otherwise,
+      // and a blank required number would fail validation on an untouched form.
+      profitPercentage: "0",
       payments: [],
     },
   });
@@ -172,6 +178,7 @@ export function NewTransactionForm() {
       goldType: values.goldType,
       goldWeightGrams: values.goldWeightGrams,
       dailyGoldPricePerGram: values.dailyGoldPricePerGram,
+      profitPercentage: values.profitPercentage,
       payments,
     });
   });
@@ -253,6 +260,19 @@ export function NewTransactionForm() {
                       />
                     )}
                   />
+
+                  <Controller
+                    control={control}
+                    name="profitPercentage"
+                    render={({ field }) => (
+                      <PercentInput
+                        label="درصد سود"
+                        placeholder="0"
+                        error={errors.profitPercentage?.message}
+                        {...field}
+                      />
+                    )}
+                  />
                 </div>
 
                 <TotalPreview />
@@ -295,43 +315,124 @@ export function NewTransactionForm() {
   );
 }
 
+/**
+ * The total, and how it got there.
+ *
+ * The breakdown exists because the total alone stops being self-evident the
+ * moment a margin is involved: base and total differ, and which way they differ
+ * depends on the transaction type. Showing the three lines means a cashier can
+ * see the sign flip when they change the type, rather than watching one number
+ * move and having to work out why.
+ */
 function TotalPreview() {
-  const total = useWatchedTotal();
+  const { baseAmount, profitAmount, totalAmount, type, percent } =
+    useWatchedTotals();
+
+  const isBuy = type === "buy";
+  const hasProfit = profitAmount > 0;
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-surface-sunken px-4 py-3">
-      <div className="flex flex-col">
-        <span className="text-xs text-fg-muted">مبلغ کل (تومان)</span>
-        <span className="text-2xs text-fg-disabled">
-          وزن × قیمت روز — محاسبه‌شده توسط سیستم
-        </span>
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface-sunken px-4 py-3">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col">
+          <span className="text-xs text-fg-muted">مبلغ کل (تومان)</span>
+          <span className="text-2xs text-fg-disabled">
+            محاسبه‌شده توسط سیستم
+          </span>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-lg font-bold tabular-nums text-fg">
+            {formatToman(totalAmount)}
+          </span>
+          {formatTomanInWords(totalAmount) && (
+            <span className="text-2xs text-fg-muted">
+              {formatTomanInWords(totalAmount)}
+            </span>
+          )}
+        </div>
       </div>
-      <span className="text-lg font-bold tabular-nums text-fg">
-        {formatToman(total)}
-      </span>
+
+      {(hasProfit || baseAmount > 0) && (
+        <dl className="flex flex-col gap-1 border-t border-border pt-2 text-2xs">
+          <BreakdownRow label="مبلغ پایه (وزن × قیمت روز)" value={baseAmount} />
+          {hasProfit && (
+            <BreakdownRow
+              label={`${isBuy ? "کسر سود" : "سود"} (${percent})`}
+              value={profitAmount}
+              sign={isBuy ? "−" : "+"}
+              tone={isBuy ? "text-danger" : "text-success"}
+            />
+          )}
+          <BreakdownRow label="مبلغ کل" value={totalAmount} emphasis />
+        </dl>
+      )}
+    </div>
+  );
+}
+
+function BreakdownRow({
+  label,
+  value,
+  sign,
+  tone,
+  emphasis,
+}: {
+  label: string;
+  value: number;
+  sign?: string;
+  tone?: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <dt className={cn("text-fg-muted", emphasis && "font-medium text-fg-secondary")}>
+        {label}
+      </dt>
+      <dd
+        className={cn(
+          "tabular-nums text-fg-secondary",
+          tone,
+          emphasis && "font-bold text-fg",
+        )}
+      >
+        {sign ? `${sign} ` : ""}
+        {formatToman(value)}
+      </dd>
     </div>
   );
 }
 
 function TotalledSummary() {
-  return <PaymentsSummary totalAmount={useWatchedTotal()} />;
+  // The payments summary settles against the FINAL total, margin included --
+  // that is the figure the customer owes.
+  return <PaymentsSummary totalAmount={useWatchedTotals().totalAmount} />;
 }
 
 /**
- * The total, from the two fields that produce it.
+ * The total and its parts, from the fields that produce them.
  *
- * Rounded to whole Toman to match the model, which does the same on write --
- * showing 11,068,750.0000001 here and storing a round number would be a
- * discrepancy the cashier has no way to explain.
+ * Delegates the arithmetic to `computeTotals`, which the schema module owns and
+ * which mirrors the model hook step for step -- showing one figure here and
+ * storing another is a discrepancy the cashier has no way to explain.
  */
-function useWatchedTotal(): number {
+function useWatchedTotals() {
   const { control } = useFormContext<TransactionFormValues>();
-  const weight = useWatch({ control, name: "goldWeightGrams" });
-  const price = useWatch({ control, name: "dailyGoldPricePerGram" });
+  const goldWeightGrams = useWatch({ control, name: "goldWeightGrams" });
+  const dailyGoldPricePerGram = useWatch({
+    control,
+    name: "dailyGoldPricePerGram",
+  });
+  const profitPercentage = useWatch({ control, name: "profitPercentage" });
+  // Watched, not read once: the sign in the breakdown has to flip the instant
+  // the type changes, without waiting for another keystroke.
+  const type = useWatch({ control, name: "type" });
 
-  const grams = toNumber(weight);
-  const perGram = toNumber(price);
+  const totals = computeTotals({
+    goldWeightGrams,
+    dailyGoldPricePerGram,
+    profitPercentage,
+    type,
+  });
 
-  if (!Number.isFinite(grams) || !Number.isFinite(perGram)) return 0;
-  return Math.round(grams * perGram);
+  return { ...totals, type, percent: formatPercent(toNumber(profitPercentage)) };
 }

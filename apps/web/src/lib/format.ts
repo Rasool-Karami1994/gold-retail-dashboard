@@ -46,6 +46,20 @@ export function formatToman(value: number): string {
   }).format(value);
 }
 
+/**
+ * A percentage with the Persian percent sign: ۱۲٫۵٪
+ *
+ * Up to one decimal -- a margin is quoted in halves at most, and trailing
+ * zeros on a whole number read as precision that is not there.
+ */
+export function formatPercent(value: number): string {
+  if (!Number.isFinite(value)) return `${toPersianDigits("0")}٪`;
+
+  return `${new Intl.NumberFormat(INTL_LOCALE, {
+    maximumFractionDigits: 1,
+  }).format(value)}٪`;
+}
+
 /** Weight, up to 3 decimals: ۴٫۳۵ */
 export function formatGrams(value: number): string {
   return new Intl.NumberFormat(INTL_LOCALE, {

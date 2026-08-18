@@ -14,7 +14,7 @@ import {
 import { PaymentsList } from "@/components/transactions/payments-list";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { formatGrams, formatToman } from "@/lib/format";
+import { formatGrams, formatPercent, formatToman } from "@/lib/format";
 import {
   fetchTransaction,
   regenerateInvoice,
@@ -39,6 +39,7 @@ const BANK_TYPE_LABELS = {
   paya: "پایا",
   "card-to-card": "کارت به کارت",
   bridge: "پل",
+  satna: "ساتنا",
 } as const;
 
 /**
@@ -143,6 +144,12 @@ export function TransactionDetail({ id }: { id: string }) {
                     </span>
                   </Field>
 
+                  <Field label="درصد سود">
+                    <span className="tabular-nums">
+                      {formatPercent(data.profitPercentage)}
+                    </span>
+                  </Field>
+
                   <Field label="مشتری">
                     {data.customer ? (
                       <Link
@@ -172,6 +179,26 @@ export function TransactionDetail({ id }: { id: string }) {
             <Card variant="raised">
               <CardContent className="flex flex-col gap-3">
                 <h2 className="text-sm font-bold text-fg-secondary">مبالغ</h2>
+
+                {/*
+                  Base and margin are shown from the STORED figures, and only
+                  when there was a margin: a "+ ۰" line on every invoice that
+                  never had one is noise, and everything recorded before the
+                  field existed is one of those.
+                */}
+                {data.profitAmount > 0 && (
+                  <>
+                    <Amount
+                      label="مبلغ پایه"
+                      value={data.totalAmount + (data.type === "buy" ? data.profitAmount : -data.profitAmount)}
+                    />
+                    <Amount
+                      label={`${data.type === "buy" ? "کسر سود" : "سود"} (${formatPercent(data.profitPercentage)})`}
+                      value={data.profitAmount}
+                      sign={data.type === "buy" ? "−" : "+"}
+                    />
+                  </>
+                )}
 
                 <Amount label="مبلغ کل" value={data.totalAmount} />
                 <Amount label="پرداخت‌شده" value={data.paidAmount} />
@@ -331,11 +358,14 @@ function Amount({
   value,
   tone,
   emphasis,
+  sign,
 }: {
   label: string;
   value: number;
   tone?: "success" | "danger";
   emphasis?: boolean;
+  /** "+" or "−" for a line that adjusts the one above it. */
+  sign?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-4">
@@ -349,6 +379,7 @@ function Amount({
           !tone && "text-fg",
         )}
       >
+        {sign ? `${sign} ` : ""}
         {formatToman(value)}
       </span>
     </div>

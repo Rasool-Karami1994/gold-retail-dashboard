@@ -23,6 +23,7 @@ const BANK_TYPE_LABELS = {
   paya: "پایا",
   "card-to-card": "کارت به کارت",
   bridge: "پل",
+  satna: "ساتنا",
 } as const;
 
 export interface PaymentsListProps {
@@ -73,7 +74,7 @@ export function PaymentsList({
       {
         id: "destination",
         // One column for both, because a row only ever has one: card-to-card
-        // records a card, paya and bridge record a Sheba. Two columns would be
+        // records a card, the account-settled routes record a Sheba. Two would be
         // half empty whichever route the shop uses most.
         header: "مقصد",
         cell: (row) => {

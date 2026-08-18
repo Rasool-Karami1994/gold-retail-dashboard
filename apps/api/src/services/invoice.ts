@@ -511,6 +511,8 @@ export async function generateInvoicePdf(
     goldType: transaction.goldType,
     goldWeightGrams: transaction.goldWeightGrams,
     dailyGoldPricePerGram: transaction.dailyGoldPricePerGram,
+    profitPercentage: transaction.profitPercentage,
+    profitAmount: transaction.profitAmount,
     totalAmount: transaction.totalAmount,
     paidAmount: transaction.paidAmount,
     remainingAmount: transaction.remainingAmount,

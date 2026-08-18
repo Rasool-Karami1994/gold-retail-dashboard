@@ -12,11 +12,33 @@ export interface InputProps
   startAdornment?: React.ReactNode;
   /** Sits at the inline-end edge (left, in RTL). */
   endAdornment?: React.ReactNode;
+  /**
+   * Direction of the FIELD ROW -- the box, its adornments and their order --
+   * as opposed to `dir`, which React puts on the <input> and which governs the
+   * text inside it.
+   *
+   * The two are usually the same and this can be left alone. They come apart
+   * when the field holds something inherently left-to-right that carries a
+   * symbol: a percentage reads "۱۲٪", so the sign has to sit after the digits,
+   * and in an RTL row "after" is the wrong side of the box. Setting this to
+   * "ltr" lays the row out the way the value reads.
+   */
+  fieldDir?: "ltr" | "rtl";
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   function Input(
-    { className, label, hint, error, startAdornment, endAdornment, id, ...props },
+    {
+      className,
+      label,
+      hint,
+      error,
+      startAdornment,
+      endAdornment,
+      fieldDir,
+      id,
+      ...props
+    },
     ref,
   ) {
     const generatedId = React.useId();
@@ -39,6 +61,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
 
         <div
+          dir={fieldDir}
           className={cn(
             "flex items-center gap-2 rounded-md border bg-surface-sunken px-3",
             "h-11 transition-colors duration-150",

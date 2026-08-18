@@ -11,6 +11,9 @@ export { Input, type InputProps } from "./input";
 // Grouped digits while typing, with the amount spelled out underneath. Use it
 // for every Toman field; pass showWords={false} for anything not money.
 export { CurrencyInput, type CurrencyInputProps } from "./currency-input";
+// The same idea for a percentage: sign inside the box, laid out left-to-right
+// so it trails the digits the way the value reads.
+export { PercentInput, type PercentInputProps } from "./percent-input";
 // A generic segmented code field, not a customer-registration detail: the
 // public sign-in and the staff add-customer wizard both enter a code with it.
 export { OtpInput, type OtpInputProps } from "./otp-input";

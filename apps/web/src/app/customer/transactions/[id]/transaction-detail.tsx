@@ -47,6 +47,7 @@ const BANK_TYPE_LABELS = {
   paya: "پایا",
   "card-to-card": "کارت به کارت",
   bridge: "پل",
+  satna: "ساتنا",
 } as const;
 
 /**

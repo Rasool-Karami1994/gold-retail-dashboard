@@ -24,7 +24,12 @@ import {
 import { PaymentsList } from "@/components/transactions/payments-list";
 import { ApiError } from "@/lib/api";
 import { customerKeys } from "@/lib/customers-api";
-import { formatGrams, formatToman, formatTomanInWords } from "@/lib/format";
+import {
+  formatGrams,
+  formatPercent,
+  formatToman,
+  formatTomanInWords,
+} from "@/lib/format";
 import { toNumber } from "@/lib/numbers";
 import {
   addPayment,
@@ -302,6 +307,24 @@ function LockedDeal({ transaction }: { transaction: TransactionDetail }) {
             dir="ltr"
           />
           <Locked
+            label="درصد سود"
+            value={formatPercent(transaction.profitPercentage)}
+            dir="ltr"
+          />
+          {/*
+            Only when there was one. Every invoice written before margins
+            existed reads 0%, and a "۰ تومان" row on all of them is noise.
+          */}
+          {transaction.profitAmount > 0 && (
+            <Locked
+              label={`${transaction.type === "buy" ? "کسر سود" : "سود"} (تومان)`}
+              value={`${transaction.type === "buy" ? "−" : "+"} ${formatToman(
+                transaction.profitAmount,
+              )}`}
+              dir="ltr"
+            />
+          )}
+          <Locked
             label="مبلغ کل (تومان)"
             value={formatToman(transaction.totalAmount)}
             dir="ltr"
@@ -345,7 +368,7 @@ function Locked({
 type PaymentFields = {
   method: "" | "cash" | "bank";
   amount: string;
-  bankType: "" | "paya" | "card-to-card" | "bridge";
+  bankType: "" | "paya" | "card-to-card" | "bridge" | "satna";
   destinationCard: string;
   destinationIban: string;
 };

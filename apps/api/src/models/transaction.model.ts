@@ -50,7 +50,7 @@ import { normalizeMobile } from "../lib/mobile.js";
 export const TRANSACTION_TYPES = ["sell", "buy"] as const;
 export const GOLD_TYPES = ["melted", "new", "second-hand"] as const;
 export const PAYMENT_METHODS = ["cash", "bank"] as const;
-export const BANK_TYPES = ["paya", "card-to-card", "bridge"] as const;
+export const BANK_TYPES = ["paya", "card-to-card", "bridge", "satna"] as const;
 export const TRANSACTION_STATUSES = ["open", "settled"] as const;
 
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
@@ -106,8 +106,8 @@ const paymentSchema = new Schema(
      * Where the money landed, recorded two ways because the two bank routes
      * identify an account differently.
      *
-     * A card-to-card transfer names a card; paya and bridge settle to an IBAN
-     * and have no card in the transaction at all. They are separate fields
+     * A card-to-card transfer names a card; every other route settles to an
+     * IBAN and has no card in the transaction at all. They are separate fields
      * rather than one loosely-typed column because everything downstream has to
      * tell them apart -- the invoice prints "کارت ****1234" for one and "شبا"
      * for the other, and a single column would make every reader sniff the
@@ -199,10 +199,49 @@ const transactionSchema = new Schema(
     },
 
     /**
-     * Computed as `goldWeightGrams * dailyGoldPricePerGram` in pre-validate.
+     * The shop's margin on this deal, as a percentage of the base amount.
+     *
+     * Defaulted to 0 and required, so every transaction written before this
+     * field existed reads as "no margin" without a migration -- and, because
+     * a zero margin makes the calculation below collapse back to
+     * `weight * pricePerGram`, their stored `totalAmount` stays exactly what
+     * it was.
+     */
+    profitPercentage: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: [0, "Profit percentage cannot be negative"],
+      max: [100, "Profit percentage cannot exceed 100"],
+    },
+
+    /**
+     * The margin in Toman, derived in pre-validate and STORED.
+     *
+     * Stored rather than recomputed on read for the same reason totalAmount is:
+     * an invoice already handed to a customer must not change its figures
+     * because the percentage on the schema, or the rounding, was revised later.
+     * What the customer was shown is what stays on the record.
+     */
+    profitAmount: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: [0, "Profit amount cannot be negative"],
+    },
+
+    /**
+     * Derived in pre-validate:
+     *
+     *   base   = goldWeightGrams * dailyGoldPricePerGram
+     *   profit = base * (profitPercentage / 100)
+     *   sell   -> base + profit   (the shop's margin is added to what the
+     *                              customer pays)
+     *   buy    -> base - profit   (the margin is withheld from what the shop
+     *                              hands over)
+     *
      * Stored rather than virtual so it can be summed, sorted and indexed --
-     * and so a historical invoice keeps its value if the schema's rounding
-     * rules ever change.
+     * and so a historical invoice keeps its value if the rules ever change.
      */
     totalAmount: {
       type: Number,
@@ -347,15 +386,36 @@ export function withRemainingFields() {
 }
 
 transactionSchema.pre("validate", async function (next) {
-  // Recompute the total whenever either input moves. Rounded to whole Toman.
+  /**
+   * Recompute the total whenever an input to it moves. Whole Toman throughout.
+   *
+   * GUARDED ON `isModified`, WHICH IS WHAT PROTECTS HISTORICAL INVOICES. A
+   * record loaded and saved for some unrelated reason does not pass this test,
+   * so its figures are left exactly as they were written. And even if it did:
+   * `profitPercentage` defaults to 0, which collapses the arithmetic below back
+   * to `weight * pricePerGram` -- the formula those records were written with.
+   *
+   * The base is rounded before the margin is taken, and the margin before it is
+   * applied, so `base ± profit === total` holds exactly. Rounding only at the
+   * end would leave the breakdown on the invoice off by a Toman against its own
+   * total, which is the sort of thing a customer notices and nobody can explain.
+   */
   if (
     this.isNew ||
     this.isModified("goldWeightGrams") ||
-    this.isModified("dailyGoldPricePerGram")
+    this.isModified("dailyGoldPricePerGram") ||
+    this.isModified("profitPercentage") ||
+    // The sign flips with the direction of the deal, so this is an input too.
+    this.isModified("type")
   ) {
-    this.totalAmount = Math.round(
+    const baseAmount = Math.round(
       this.goldWeightGrams * this.dailyGoldPricePerGram,
     );
+    const profit = Math.round(baseAmount * ((this.profitPercentage ?? 0) / 100));
+
+    this.profitAmount = profit;
+    this.totalAmount =
+      this.type === "buy" ? baseAmount - profit : baseAmount + profit;
   }
 
   // Derive status from the payments on every save.

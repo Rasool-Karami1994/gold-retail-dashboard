@@ -1,6 +1,7 @@
 import {
   formatGrams,
   formatJalaliDateTime,
+  formatPercent,
   formatToman,
 } from "../lib/jalali.js";
 import {
@@ -39,6 +40,7 @@ const BANK_TYPE_LABELS: Record<BankType, string> = {
   paya: "پایا",
   "card-to-card": "کارت به کارت",
   bridge: "پل",
+  satna: "ساتنا",
 };
 
 /**
@@ -78,6 +80,8 @@ export interface InvoiceTemplateData {
   goldType: GoldType;
   goldWeightGrams: number;
   dailyGoldPricePerGram: number;
+  profitPercentage: number;
+  profitAmount: number;
   totalAmount: number;
   paidAmount: number;
   remainingAmount: number;
@@ -102,6 +106,8 @@ export function renderInvoiceHtml(data: InvoiceTemplateData): string {
     goldType,
     goldWeightGrams,
     dailyGoldPricePerGram,
+    profitPercentage,
+    profitAmount,
     totalAmount,
     paidAmount,
     remainingAmount,
@@ -110,6 +116,26 @@ export function renderInvoiceHtml(data: InvoiceTemplateData): string {
   } = data;
 
   const settled = remainingAmount === 0;
+
+  /**
+   * The margin, and which way it moved.
+   *
+   * Printed from the STORED figures, never recomputed here: an invoice already
+   * in a customer's hands has to keep saying what it said, whatever the rule
+   * becomes later. Omitted entirely at 0% -- a row reading "+ ۰" on every
+   * invoice that never had a margin is noise, and every record written before
+   * the field existed is one of those.
+   */
+  const baseAmount = type === "buy" ? totalAmount + profitAmount : totalAmount - profitAmount;
+
+  const profitRow =
+    profitPercentage > 0
+      ? `<tr><td>${type === "buy" ? "کسر سود" : "سود"} (${formatPercent(
+          profitPercentage,
+        )})</td><td>${type === "buy" ? "−" : "+"} ${formatToman(
+          profitAmount,
+        )}</td></tr>`
+      : "";
 
   // Who the outstanding balance belongs to depends on the direction of the
   // deal -- see the header comment in transaction.model.ts.
@@ -301,7 +327,7 @@ td.empty { text-align: center; color: #8b91a0; padding: 5mm; }
       <th>نوع طلا</th>
       <th>وزن (گرم)</th>
       <th>نرخ روز (تومان بر گرم)</th>
-      <th class="amount">مبلغ کل (تومان)</th>
+      <th class="amount">مبلغ پایه (تومان)</th>
     </tr>
   </thead>
   <tbody>
@@ -309,7 +335,7 @@ td.empty { text-align: center; color: #8b91a0; padding: 5mm; }
       <td>${GOLD_TYPE_LABELS[goldType]}</td>
       <td>${formatGrams(goldWeightGrams)}</td>
       <td>${formatToman(dailyGoldPricePerGram)}</td>
-      <td class="amount">${formatToman(totalAmount)}</td>
+      <td class="amount">${formatToman(baseAmount)}</td>
     </tr>
   </tbody>
 </table>
@@ -329,6 +355,8 @@ td.empty { text-align: center; color: #8b91a0; padding: 5mm; }
 </table>
 
 <table class="totals">
+  <tr><td>مبلغ پایه</td><td>${formatToman(baseAmount)}</td></tr>
+  ${profitRow}
   <tr class="grand"><td>مبلغ کل</td><td>${formatToman(totalAmount)}</td></tr>
   <tr><td>پرداخت‌شده</td><td>${formatToman(paidAmount)}</td></tr>
   <tr class="remaining ${settled ? "settled" : "due"}">

@@ -31,7 +31,7 @@ export interface PaymentInput {
   bankType?: BankType;
   /** card-to-card only. */
   destinationCard?: string;
-  /** paya and bridge only -- they settle to an account, not a card. */
+  /** Every other bank route -- they settle to an account, not a card. */
   destinationIban?: string;
   paidAt?: Date;
 }
@@ -42,6 +42,8 @@ export interface CreateTransactionInput {
   goldType: GoldType;
   goldWeightGrams: number;
   dailyGoldPricePerGram: number;
+  /** Optional at the boundary; the model defaults it to 0. */
+  profitPercentage?: number;
   payments?: PaymentInput[];
   invoicePdfUrl?: string | null;
 }
@@ -65,6 +67,7 @@ export async function createTransaction(
     goldType: input.goldType,
     goldWeightGrams: input.goldWeightGrams,
     dailyGoldPricePerGram: input.dailyGoldPricePerGram,
+    profitPercentage: input.profitPercentage ?? 0,
     payments: input.payments ?? [],
     invoicePdfUrl: input.invoicePdfUrl ?? null,
     createdBy,

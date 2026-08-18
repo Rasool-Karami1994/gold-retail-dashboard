@@ -93,8 +93,8 @@ function PaymentRow({
   /**
    * One slot in the layout, two different things in it.
    *
-   * Card-to-card names a card; paya and bridge settle to an account and name a
-   * Sheba. Showing both at once would ask for a number that does not exist for
+   * Card-to-card names a card; every other route settles to an account and
+   * names a Sheba. Showing both at once would ask for a number that does not exist for
    * the route chosen, so the field swaps its name, its placeholder and its
    * rules together.
    */
