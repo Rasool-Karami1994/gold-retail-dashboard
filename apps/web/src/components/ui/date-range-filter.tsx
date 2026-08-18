@@ -63,8 +63,8 @@ export function DateRangeFilter({
    * ~340px tall would then run off the viewport -- unreachable in a dialog,
    * because the top layer does not scroll with the page.
    *
-   * Measured rather than assumed: a `useLayoutEffect` runs after the popover is
-   * in the DOM but before paint, so the flip never shows as a jump.
+   * Measured rather than assumed -- see the placement effect below for why the
+   * measurement that decides it has to run on a timer.
    */
   const [dropUp, setDropUp] = React.useState(false);
 
@@ -88,18 +88,29 @@ export function DateRangeFilter({
     place();
 
     /**
-     * Re-measured on resize, not just once.
+     * Measured a second time, on a timer, and this is the measurement that
+     * actually decides it.
      *
-     * The calendar has no height on the layout pass that first reveals it, so a
-     * single measurement decides "there is room below" against a popover of
-     * zero height and always drops down. It also changes height in normal use:
-     * a month spanning six weeks is a row taller than one spanning five.
+     * The popover is a few pixels of padding when the layout effect above runs:
+     * the calendar builds its month in a PASSIVE effect, which React has not
+     * got to yet, so the first measurement always concludes there is room
+     * below. A timeout lands after those effects, with the real height.
+     *
+     * A `requestAnimationFrame` would be the obvious way to wait, and it is the
+     * wrong one -- it only runs when the browser is producing frames, so in a
+     * background tab the popover would open unplaced and stay that way. Timers
+     * run regardless.
      */
+    const timer = window.setTimeout(place, 0);
+    // Still watched for later size changes: a month spanning six weeks is a row
+    // taller than one spanning five, and the popover has to re-place itself
+    // when the user pages through.
     const observer = new ResizeObserver(place);
     observer.observe(popover);
     window.addEventListener("resize", place);
 
     return () => {
+      window.clearTimeout(timer);
       observer.disconnect();
       window.removeEventListener("resize", place);
     };
