@@ -572,6 +572,53 @@ pipeline can read it. The aggregation equivalent lives in
 `withRemainingFields()`, directly beneath the virtual it mirrors — change one
 and you must change the other.
 
+Capital in grams of gold — admin-only. A gold shop measures itself in metal,
+not currency: the gold in the safe plus what its cash, receivables and payables
+come to at the day's rate.
+
+| Method | Path | |
+| --- | --- | --- |
+| `GET` | `/api/admin/shop-settings` | `{ configured, settings }` — the opening position, or `configured: false` |
+| `PATCH` | `/api/admin/shop-settings` | Create or update it. All three fields required on the first write |
+| `GET` | `/api/admin/gold-prices` | `{ today, latest }` — today's recorded price and the most recent of any day |
+| `POST` | `/api/admin/gold-prices` | Record a price; **upserts by day**, so re-submitting corrects rather than duplicates |
+| `GET` | `/api/admin/capital` | The series plus a current snapshot; `?from=&to=&granularity=day\|week\|month` |
+
+For a point in time `T` valued at price `P`:
+
+```
+goldGrams   = openingGoldGrams − Σ(sell weight ≤ T) + Σ(buy weight ≤ T)
+cash        = openingCashToman + Σ(sell payments paid ≤ T) − Σ(buy payments paid ≤ T)
+receivables = Σ(remaining on sells as of T)      // owed to the shop
+payables    = Σ(remaining on buys  as of T)      // owed by the shop
+capital     = goldGrams + (cash + receivables − payables) / P
+```
+
+**Recomputed from the transactions on every request, never stored as a running
+total.** Payments are recorded retroactively — an instalment carries its own
+`paidAt`, which can be weeks before the day it is entered — so an incremental
+counter would have to be revised backwards through history it has already
+published, and a missed revision is undetectable: a wrong total looks exactly
+like a right one.
+
+**Gold moves on the transaction's `createdAt`; cash moves on the payment's
+`paidAt`.** A deal struck in Farvardin and paid in Khordad moves metal in the
+first month and money in the third. Summing payments by their transaction's
+creation date — the easy mistake, since that is the one date on the parent
+document — posts the money to the wrong month.
+
+A day with no recorded price is valued at the most recent earlier one and
+marked `estimated: true`, which the chart draws as a hollow point; a point with
+no prior price at all is omitted rather than guessed at. Everything before
+`openingDate` is excluded, because an opening balance already accounts for it.
+Buckets are Jalali months and Saturday-start weeks on the Tehran clock
+([`shop-calendar.ts`](apps/api/src/lib/shop-calendar.ts)), and each point
+carries its bucket start twice — as an instant (`date`) and as the plain
+calendar day (`day`) a client should label it with. **All gold types are summed
+as fungible weight**; the deliberate simplification is documented at the
+aggregation in
+[`capital.service.ts`](apps/api/src/services/capital.service.ts).
+
 The signed-in customer's own records — `requireRole('customer')`:
 
 | Method | Path | |

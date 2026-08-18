@@ -7,6 +7,11 @@ import { env } from "./config/env.js";
 import { apiRouter } from "./routes/index.js";
 import { adminAuthRouter } from "./routes/admin-auth.routes.js";
 import { adminCustomerRouter } from "./routes/admin-customer.routes.js";
+import {
+  adminCapitalRouter,
+  adminGoldPriceRouter,
+  adminShopSettingsRouter,
+} from "./routes/admin-capital.routes.js";
 import { adminStatsRouter } from "./routes/admin-stats.routes.js";
 import { adminTransactionRouter } from "./routes/admin-transaction.routes.js";
 import { customerAuthRouter } from "./routes/customer-auth.routes.js";
@@ -58,6 +63,9 @@ export function createApp(): Express {
   app.use("/api/admin/auth", adminAuthRouter);
   app.use("/api/admin/customers", adminCustomerRouter);
   app.use("/api/admin/stats", adminStatsRouter);
+  app.use("/api/admin/shop-settings", adminShopSettingsRouter);
+  app.use("/api/admin/gold-prices", adminGoldPriceRouter);
+  app.use("/api/admin/capital", adminCapitalRouter);
   app.use("/api/admin/transactions", adminTransactionRouter);
   app.use("/api/customer/auth", customerAuthRouter);
   app.use("/api/customer/me", customerMeRouter);

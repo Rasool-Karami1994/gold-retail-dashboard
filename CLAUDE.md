@@ -13,10 +13,11 @@ Consult when building new components to stay visually consistent.
 
 Built and verified against live Mongo:
 
-- **API** — Admin/Customer/OtpRequest/Transaction models; admin password auth
-  and customer OTP auth; customer CRUD with aggregates; transaction CRUD with
-  payments; five dashboard stats endpoints; PDF invoices with a public link;
-  Kavenegar SMS.
+- **API** — Admin/Customer/OtpRequest/Transaction/ShopSettings/GoldPrice models;
+  admin password auth and customer OTP auth; customer CRUD with aggregates;
+  transaction CRUD with payments; five dashboard stats endpoints; capital in
+  grams (opening position, daily gold price, recomputed series); PDF invoices
+  with a public link; Kavenegar SMS.
 - **Web** — design tokens + base UI kit (Button, Input, Select, Card, Modal,
   DataTable, DateRangeFilter, ChartCard, Sidebar, PageHeader, Toast); Zustand
   stores; TanStack Query; RTL middleware guard; admin login; admin shell
@@ -25,8 +26,10 @@ Built and verified against live Mongo:
   `/admin/customers/new` (the two-step OTP registration wizard),
   `/admin/customers/[id]` (profile + lifetime totals + paginated history),
   `/admin/transactions` (URL-driven filters + filter modal),
-  `/admin/transactions/new` (mobile lookup → deal → payments builder) and
-  `/admin/transactions/[id]` (details, payments, invoice PDF).
+  `/admin/transactions/new` (mobile lookup → deal → payments builder),
+  `/admin/transactions/[id]` (details, payments, invoice PDF) and
+  `/admin/capital` (daily price entry, gram-denominated stat cards, capital
+  line chart, first-run opening-balance setup).
 
 **Both apps are now built.** Admin: no placeholder screens remain under
 `/admin`. Customer: **`/` is sign-in** (mobile → OTP), and `/customer` is the
@@ -127,6 +130,42 @@ pnpm --filter api seed:admin
 - **Flow vs stock.** `/stats/volume` and `/stats/amount` are flow — filtered by
   date range. `/stats/debt-credit-*` are stock — running totals as of now, and
   deliberately reject a range, because a debt raised last year is still owed.
+- **Capital is recomputed from the transactions on every request, never
+  stored.** Payments arrive retroactively — an instalment carries its own
+  `paidAt` — so a running `capitalGrams` counter would have to be revised
+  backwards through history it already published, and a missed revision is
+  undetectable because a wrong total looks exactly like a right one. The two
+  pipelines in `capital.service.ts` bucket server-side and return a handful of
+  rows; don't "optimise" them into a stored total.
+- **Gold moves on `createdAt`, cash moves on the payment's `paidAt`.** A deal
+  struck in Farvardin and paid in Khordad moves metal in the first month and
+  money in the third, so the capital series aggregates payments in their own
+  pass over `$unwind`ed `payments.paidAt`. Summing them by the parent's
+  creation date — the one date on the document — posts the money to the wrong
+  month, and every figure in between then lies.
+- **Receivables/payables as of a PAST instant are `Σ totals − Σ payments`, not
+  `Σ remainingAmount`.** The remainder on a document reflects every payment
+  currently on it, whenever it was made, so it can only ever be read as of now.
+  Settled transactions stay in the sum for the same reason: one settled this
+  morning was still outstanding last month.
+- **A bucket label is a calendar day, so it travels as `YYYY-MM-DD`.** The
+  capital series returns each point's start twice — `date` (an instant that is
+  midnight in Tehran) and `day` (the plain date). Format `day` with
+  `fromApiDate()`; running `new Date(point.date)` through a browser outside
+  Tehran shifts every label by a day, which on a monthly series labels each
+  bucket with the last day of the previous month.
+- **Jalali month/week boundaries on the API come from `lib/shop-calendar.ts`**,
+  which uses ICU rather than a conversion library, and works in Tehran days
+  rather than UTC ones. `shopDayStart()` applies the zone offset twice on
+  purpose — see the comment.
+- **A popover that has to place itself must re-measure on a TIMER, not a
+  frame.** `react-multi-date-picker` fills its calendar in a passive effect, so
+  the layout-effect measurement sees an empty 18px box and always concludes
+  "there is room below"; `requestAnimationFrame` and `ResizeObserver` both only
+  run when the browser is producing frames, so in a background tab the popover
+  never gets placed at all. `jalali-date-field.tsx` uses `setTimeout(…, 0)` and
+  keeps the observer for later size changes. `DateRangeFilter` predates this
+  and still relies on the observer alone.
 - **A customer's `mobile` is immutable.** It is their login identity, so
   changing it hands the account and its history to a different phone. Both edit
   schemas are `.strict()` about it, and `/customer/profile` renders it as a
@@ -251,6 +290,18 @@ Never push unless asked.
   re-renders and repoints `invoicePdfUrl` without re-texting the customer;
   calling it after a payment is the fix, at the cost of a Chromium render per
   instalment.
+- **All gold is treated as fungible by weight in the capital figures.** Melted,
+  new and second-hand gold differ in purity and in the making fee (اجرت), so a
+  gram of scrap and a gram of a new piece are different assets that the gram
+  aggregation adds together. Doing it properly needs a purity factor per gold
+  type and a making-fee split per deal, neither of which the schema records;
+  the deliberate choice is commented at `aggregateDeals()` in
+  `capital.service.ts`, and that sum plus the opening balance are where the
+  weighting would go.
+- **Only today's gold price can be entered from the UI.** The API accepts a
+  `date` on `POST /api/admin/gold-prices`, so backfilling a missed day is one
+  request away, but the screen has no field for it — a shop that skips a week
+  gets a series of estimated points with no way to correct them but curl.
 - **Inconsistent range params.** `/stats/*` takes `from`/`to`;
   `/admin/transactions` takes `dateFrom`/`dateTo`. Both were specified that way.
   `lib/stats-api.ts` and `lib/transactions-api.ts` hide the difference from

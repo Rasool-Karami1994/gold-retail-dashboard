@@ -62,6 +62,11 @@ const items: SidebarItem[] = [
     label: "ثبت معامله",
     icon: <Icon><path d="M12 5v14M5 12h14" /></Icon>,
   },
+  {
+    href: "/admin/capital",
+    label: "مدیریت سرمایه بر مبنای طلا",
+    icon: <Icon><path d="M3 3v18h18" /><path d="m7 15 4-5 3 3 5-7" /><circle cx="19" cy="6" r="1.6" /></Icon>,
+  },
 ];
 
 /**

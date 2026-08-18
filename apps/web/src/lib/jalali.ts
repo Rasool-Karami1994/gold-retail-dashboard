@@ -127,6 +127,19 @@ export function toApiDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * The inverse of `toApiDate`: a plain `YYYY-MM-DD` as a LOCAL midnight.
+ *
+ * `new Date("2026-04-21")` parses as UTC midnight, which is the previous day
+ * anywhere west of Greenwich -- so formatting it back would shift the label by
+ * a day. Building it from the parts keeps a calendar day a calendar day, which
+ * is what the API means when it sends one.
+ */
+export function fromApiDate(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1);
+}
+
 /** e.g. ۱۴۰۵/۰۵/۱۰ */
 export function formatJalali(date: Date, format = "YYYY/MM/DD"): string {
   return new DateObject({
