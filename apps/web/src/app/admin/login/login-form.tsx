@@ -130,8 +130,7 @@ export default function AdminLoginForm() {
       <Card className="w-full max-w-sm">
         <CardContent className="flex flex-col gap-6">
           <header className="flex flex-col gap-1">
-            <h1 className="text-xl font-bold">ورود کارکنان</h1>
-            <p className="text-sm text-fg-muted">پنل مدیریت</p>
+            <h1 className="text-xl font-bold">ورود به پنل مدیریت</h1>
           </header>
 
           <form

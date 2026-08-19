@@ -1,11 +1,5 @@
 import mongoose from "mongoose";
 import { env } from "./env.js";
-
-/**
- * Mongoose buffers queries issued before the connection is ready, which turns a
- * bad connection string into a silent 10-second hang instead of an error. We
- * disable that and fail fast at boot instead.
- */
 mongoose.set("bufferCommands", false);
 mongoose.set("strictQuery", true);
 
