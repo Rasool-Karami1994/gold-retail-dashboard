@@ -157,15 +157,19 @@ pnpm --filter api seed:admin
 - **Jalali month/week boundaries on the API come from `lib/shop-calendar.ts`**,
   which uses ICU rather than a conversion library, and works in Tehran days
   rather than UTC ones. `shopDayStart()` applies the zone offset twice on
-  purpose — see the comment.
+  purpose: the first pass uses the offset at `at`, which is the wrong one when
+  `at` sits on the far side of a DST transition from the midnight being
+  computed; the second re-reads the offset at the instant the first produced,
+  which lands on the right side. One correction is enough for any offset change
+  smaller than the distance between the two instants.
 - **A popover that has to place itself must re-measure on a TIMER, not a
   frame.** `react-multi-date-picker` fills its calendar in a passive effect, so
   the layout-effect measurement sees an empty 18px box and always concludes
   "there is room below"; `requestAnimationFrame` and `ResizeObserver` both only
   run when the browser is producing frames, so in a background tab the popover
-  never gets placed at all. `jalali-date-field.tsx` uses `setTimeout(…, 0)` and
-  keeps the observer for later size changes. `DateRangeFilter` predates this
-  and still relies on the observer alone.
+  never gets placed at all. Both `jalali-date-field.tsx` and `DateRangeFilter`
+  use `setTimeout(…, 0)` and keep the observer for later size changes — a month
+  spanning six weeks is a row taller than one spanning five.
 - **A customer's `mobile` is immutable.** It is their login identity, so
   changing it hands the account and its history to a different phone. Both edit
   schemas are `.strict()` about it, and `/customer/profile` renders it as a
@@ -294,10 +298,11 @@ Never push unless asked.
   new and second-hand gold differ in purity and in the making fee (اجرت), so a
   gram of scrap and a gram of a new piece are different assets that the gram
   aggregation adds together. Doing it properly needs a purity factor per gold
-  type and a making-fee split per deal, neither of which the schema records;
-  the deliberate choice is commented at `aggregateDeals()` in
-  `capital.service.ts`, and that sum plus the opening balance are where the
-  weighting would go.
+  type and a making-fee split per deal, neither of which the schema records.
+  It is how the shop states the headline figure itself — "how many grams am I
+  worth", asked of the counter as a whole. The `$sum` in `aggregateDeals()`
+  (`capital.service.ts`) plus the opening balance in shop-settings are the two
+  places the weighting would go.
 - **Only today's gold price can be entered from the UI.** The API accepts a
   `date` on `POST /api/admin/gold-prices`, so backfilling a missed day is one
   request away, but the screen has no field for it — a shop that skips a week
