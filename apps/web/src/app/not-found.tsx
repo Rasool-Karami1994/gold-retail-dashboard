@@ -2,14 +2,6 @@ import Link from "next/link";
 import { Card, CardContent, buttonStyles } from "@/components/ui";
 import { ROUTES } from "@/config/routes";
 
-/**
- * 404, in Persian and in this app's chrome.
- *
- * It points at the customer front door rather than the admin overview: someone
- * who followed a broken link is far more likely to be a customer, and an admin
- * lands on their own home from `/` anyway -- the middleware redirects them
- * before this page's link resolves.
- */
 export default function NotFound() {
   return (
     <div className="flex min-h-dvh items-center justify-center p-6">

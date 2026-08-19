@@ -140,7 +140,6 @@ export default function DesignPage() {
         }
       />
 
-      {/* ---- Buttons ---- */}
       <Card>
         <CardHeader>
           <div>
@@ -161,7 +160,6 @@ export default function DesignPage() {
         </CardContent>
       </Card>
 
-      {/* ---- Toasts ---- */}
       <Card>
         <CardHeader>
           <div>
@@ -208,7 +206,6 @@ export default function DesignPage() {
         </CardContent>
       </Card>
 
-      {/* ---- Form fields ---- */}
       <Card>
         <CardHeader>
           <CardTitle>فیلدهای فرم</CardTitle>
@@ -229,7 +226,6 @@ export default function DesignPage() {
         </CardContent>
       </Card>
 
-      {/* ---- Date range filter ---- */}
       <Card>
         <CardHeader>
           <div>
@@ -247,7 +243,6 @@ export default function DesignPage() {
         </CardContent>
       </Card>
 
-      {/* ---- Chart ---- */}
       <ChartCard title="گردش ماهانه" description="میلیون تومان" defaultPreset="year">
         <BarChart data={demoChartData} barGap={4}>
           <CartesianGrid {...gridProps} />
@@ -260,7 +255,6 @@ export default function DesignPage() {
         </BarChart>
       </ChartCard>
 
-      {/* ---- Data table ---- */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold">جدول داده</h2>

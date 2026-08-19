@@ -1,18 +1,6 @@
 @import "tailwindcss";
 
-/*
-  ---------------------------------------------------------------------------
-  g-dash design tokens
-
-  NOTE: these values were derived visually from the reference screenshots of
-  the fronthooks.ir dashboard, not from an exported design source. They are
-  close but not authoritative -- if you have the real palette, replace the
-  hexes in this block and everything downstream follows automatically.
-  ---------------------------------------------------------------------------
-*/
-
 @theme {
-  /* ---- Surfaces ------------------------------------------------------- */
   --color-bg: #0b1020;
   --color-surface-sunken: #10172e;
   --color-surface: #141b33;
@@ -21,7 +9,6 @@
   --color-border: #232b4a;
   --color-border-strong: #2f3860;
 
-  /* ---- Brand ---------------------------------------------------------- */
   --color-primary-50: #eef0fe;
   --color-primary-100: #dcdffd;
   --color-primary-200: #babffb;
@@ -35,7 +22,6 @@
 
   --color-accent: #7c5cff;
 
-  /* ---- Semantic ------------------------------------------------------- */
   --color-success: #34d399;
   --color-success-bg: #10362b;
   --color-danger: #ef4444;
@@ -44,54 +30,47 @@
   --color-warning-bg: #3a2412;
   --color-info: #6e8bff;
 
-  /* ---- Text ----------------------------------------------------------- */
   --color-fg: #f1f4ff;
   --color-fg-secondary: #a9b1d0;
   --color-fg-muted: #6e779b;
   --color-fg-disabled: #4b5478;
   --color-link: #6e8bff;
 
-  /* ---- Typography ----------------------------------------------------- */
   --font-sans: var(--font-vazir), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
 
-  --text-2xs: 0.6875rem;   /* 11px - table meta */
+  --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1.6;
-  --text-xs: 0.75rem;      /* 12px - badges, captions */
+  --text-xs: 0.75rem;
   --text-xs--line-height: 1.6;
-  --text-sm: 0.8125rem;    /* 13px - table body, secondary copy */
+  --text-sm: 0.8125rem;
   --text-sm--line-height: 1.7;
-  --text-base: 0.875rem;   /* 14px - default body */
+  --text-base: 0.875rem;
   --text-base--line-height: 1.8;
-  --text-lg: 1rem;         /* 16px - card titles */
+  --text-lg: 1rem;
   --text-lg--line-height: 1.7;
-  --text-xl: 1.25rem;      /* 20px - section headings */
+  --text-xl: 1.25rem;
   --text-xl--line-height: 1.5;
-  --text-2xl: 1.5rem;      /* 24px - page titles */
+  --text-2xl: 1.5rem;
   --text-2xl--line-height: 1.4;
-  --text-3xl: 2rem;        /* 32px - hero */
+  --text-3xl: 2rem;
   --text-3xl--line-height: 1.3;
 
-  /* ---- Spacing -------------------------------------------------------- */
   --spacing: 4px;
 
-  /* ---- Radius --------------------------------------------------------- */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
 
-  /* ---- Shadows -------------------------------------------------------- */
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
   --shadow-md: 0 4px 12px rgb(0 0 0 / 0.35);
   --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.45);
-  /* signature effect: primary buttons in the reference carry a blue halo */
+
   --shadow-glow: 0 0 20px rgb(76 91 245 / 0.5);
   --shadow-glow-sm: 0 0 12px rgb(76 91 245 / 0.35);
 }
 
-/* The hero banner runs a deep-indigo -> blue gradient. RTL reads right to
-   left, so the bright end sits on the right. */
 @utility bg-hero {
   background-image: linear-gradient(270deg, var(--color-primary-900), #2d3be0);
 }
@@ -110,9 +89,6 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Persian numerals come from the font itself (the Vazir "FD" cut), so there
-     is no feature-settings or transliteration step here. */
-
   ::selection {
     background-color: var(--color-primary-500);
     color: #fff;
@@ -124,15 +100,6 @@
   }
 }
 
-/*
-  react-multi-date-picker ships light-themed styles that know nothing about our
-  tokens, so the calendar is restyled here rather than by importing one of its
-  themes. Scoped to .gd-calendar (set in DateRangeFilter) so nothing else on the
-  page is affected.
-
-  These selectors track the library's internal class names -- if the calendar
-  ever renders unstyled after a dependency bump, check whether .rmdp-* changed.
-*/
 .gd-calendar.rmdp-wrapper,
 .gd-calendar .rmdp-calendar {
   background: transparent;
@@ -162,20 +129,17 @@
   color: var(--color-fg);
 }
 
-/* Days outside the visible month, and disabled days. */
 .gd-calendar .rmdp-day.rmdp-deactive span,
 .gd-calendar .rmdp-day.rmdp-disabled span {
   color: var(--color-fg-disabled);
 }
 
-/* The two endpoints of the selected range. */
 .gd-calendar .rmdp-range {
   background: var(--color-primary-500);
   color: #fff;
   box-shadow: none;
 }
 
-/* Days between the endpoints. */
 .gd-calendar .rmdp-range-hover,
 .gd-calendar .rmdp-range.start,
 .gd-calendar .rmdp-range.end {

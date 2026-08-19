@@ -17,33 +17,18 @@ import { customerProfile } from "./routes";
 
 const PAGE_SIZE = 20;
 
-/** Long enough that a normal typing burst is one request, short enough to feel live. */
 const SEARCH_DEBOUNCE_MS = 350;
 
-/**
- * The customer directory table.
- *
- * Search and pagination both run on the server -- `?search=` matches a first
- * name, a last name or a mobile number, so filtering client-side would only
- * ever narrow the current page of 20 and quietly hide matches on page 2.
- * `manual` tells DataTable the rows it is handed are already the page.
- *
- * Columns carry no `sortValue` for the same reason: DataTable's sorting is
- * client-side, and there is no sort parameter on this endpoint, so a sortable
- * header would reorder one page and look broken across the rest.
- */
 export function CustomersTable() {
   const [term, setTerm] = React.useState("");
   const [search, setSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
 
-  // Debounce: the input stays instant, the query trails it.
   React.useEffect(() => {
     const timer = setTimeout(() => setSearch(term.trim()), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [term]);
 
-  // Page 4 of everyone is meaningless once the list is narrowed to "احمدی".
   React.useEffect(() => {
     setPage(1);
   }, [search]);
@@ -51,8 +36,6 @@ export function CustomersTable() {
   const { data, isPending, isFetching, isError, refetch } = useQuery({
     queryKey: customerKeys.list(page, PAGE_SIZE, search),
     queryFn: () => fetchCustomers({ page, limit: PAGE_SIZE, search: search || undefined }),
-    // Keeps the previous page on screen while the next one loads, so paging
-    // doesn't collapse the table to skeletons and jump the scroll position.
     placeholderData: keepPreviousData,
   });
 
@@ -63,8 +46,6 @@ export function CustomersTable() {
       {
         id: "name",
         header: "نام و نام خانوادگی",
-        // nowrap so a two-part name stays on one line; the fixed-width columns
-        // to its left would otherwise squeeze it into a wrap at narrow widths.
         cell: (row) => (
           <span className="whitespace-nowrap font-medium text-fg">
             {`${row.firstName} ${row.lastName}`.trim()}
@@ -74,8 +55,6 @@ export function CustomersTable() {
       {
         id: "mobile",
         header: "شماره موبایل",
-        // dir="ltr" so the leading zero stays on the left; a bare RTL run would
-        // render 09123456789 with its digits in the wrong visual order.
         cell: (row) => (
           <span className="font-mono text-xs" dir="ltr">
             {row.mobile}
@@ -90,9 +69,6 @@ export function CustomersTable() {
         align: "center",
         width: "8rem",
       },
-      // Headed from the SHOP's side, matching the rest of the staff panel --
-      // `totalPurchased` is what the customer bought, i.e. the shop's sales.
-      // See the note on the same pair in customers/[id]/customer-detail.tsx.
       {
         id: "totalPurchased",
         header: "مجموع فروش به مشتری (تومان)",
@@ -155,8 +131,6 @@ export function CustomersTable() {
         />
       ) : (
         <div
-          // Dim rather than blank while a new page or search is in flight --
-          // keepPreviousData means the rows below are real, just one step stale.
           className={cn(
             "transition-opacity duration-150",
             isFetching && !isPending && "opacity-60",

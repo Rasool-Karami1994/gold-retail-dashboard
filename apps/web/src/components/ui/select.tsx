@@ -44,7 +44,6 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             defaultValue={placeholder ? "" : undefined}
             className={cn(
               "h-11 w-full appearance-none rounded-md border bg-surface-sunken",
-              // extra inline-end padding leaves room for the chevron
               "ps-3 pe-10 text-sm text-fg outline-none transition-colors duration-150",
               "focus:border-primary-500 focus:shadow-glow-sm",
               "disabled:opacity-50",

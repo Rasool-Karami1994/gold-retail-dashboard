@@ -13,14 +13,6 @@ import {
 import { toNumber } from "@/lib/numbers";
 import type { CustomerTransactionFilters } from "@/lib/transactions-api";
 
-/**
- * Date and amount bounds for the customer's own invoice list.
- *
- * Edits a draft and reports it on submit, like the admin filter: filtering per
- * keystroke would fire a request for every intermediate state of a half-typed
- * amount. The draft is re-seeded from `value` each time the dialog opens, so
- * abandoning an edit with Esc leaves the applied filters untouched.
- */
 export function CustomerFiltersModal({
   open,
   onClose,
@@ -32,7 +24,6 @@ export function CustomerFiltersModal({
   value: CustomerTransactionFilters;
   onApply: (filters: CustomerTransactionFilters) => void;
 }) {
-  /** null means "every date", which is the default and NOT what a preset says. */
   const [range, setRange] = React.useState<DateRange | null>(null);
   const [minAmount, setMinAmount] = React.useState("");
   const [maxAmount, setMaxAmount] = React.useState("");
@@ -54,11 +45,6 @@ export function CustomerFiltersModal({
 
   const minInvalid = minAmount !== "" && (!Number.isFinite(min) || min < 0);
   const maxInvalid = maxAmount !== "" && (!Number.isFinite(max) || max < 0);
-  /**
-   * The API rejects a reversed range with a 400. Catching it here means the
-   * user reads "the ceiling is below the floor" instead of a generic failure
-   * after a round trip.
-   */
   const reversed =
     !minInvalid && !maxInvalid && Number.isFinite(min) && Number.isFinite(max) && min > max;
 
@@ -69,8 +55,6 @@ export function CustomerFiltersModal({
     onApply({
       dateFrom: range?.from,
       dateTo: range?.to,
-      // Empty means absent, not zero -- `customerTransactionQuery` drops
-      // undefined and keeps a real 0.
       minAmount: minAmount === "" ? undefined : min,
       maxAmount: maxAmount === "" ? undefined : max,
     });
@@ -91,8 +75,6 @@ export function CustomerFiltersModal({
       title="فیلتر معاملات"
       description="فیلترهای خالی اعمال نمی‌شوند."
     >
-      {/* The form owns its buttons rather than Modal's `footer` slot, so submit
-          stays inside the form and Enter still works. */}
       <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-1 text-sm font-medium text-fg-secondary">
@@ -100,11 +82,6 @@ export function CustomerFiltersModal({
           </legend>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/*
-              DateRangeFilter always holds a range -- it has no "off". The
-              default here is no date filter at all, so the toggle owns that
-              state and the picker only appears once a range is wanted.
-            */}
             <label className="flex items-center gap-2 text-sm text-fg-secondary">
               <input
                 type="checkbox"

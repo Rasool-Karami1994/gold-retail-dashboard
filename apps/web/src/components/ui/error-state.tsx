@@ -4,23 +4,10 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 import { buttonStyles } from "./button-styles";
 
-/**
- * "This didn't load — try again", in the space the content would have taken.
- *
- * A failed list or chart is not a toast: a toast is for something that happened
- * beside what you are looking at, and this IS what you are looking at. It also
- * has to carry the retry, because the alternative is asking the user to reload
- * the whole page to re-run one query.
- *
- * Toasts stay for failed WRITES, where the screen behind them is still valid
- * and the message is about an action rather than a region.
- */
 export interface ErrorStateProps {
-  /** What failed, in Persian. Keep it about the content, not the HTTP status. */
   message?: React.ReactNode;
   onRetry?: () => void;
   retryLabel?: string;
-  /** `bare` drops the border and background, for use inside a card that has its own. */
   variant?: "panel" | "bare";
   className?: string;
 }

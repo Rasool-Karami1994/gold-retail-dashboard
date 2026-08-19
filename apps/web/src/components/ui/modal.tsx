@@ -9,7 +9,6 @@ const sizes: Record<Size, string> = {
   sm: "max-w-md",
   md: "max-w-lg",
   lg: "max-w-2xl",
-  // For wide content -- a multi-column table is unreadable squeezed into `lg`.
   xl: "max-w-5xl",
 };
 
@@ -21,15 +20,10 @@ export interface ModalProps {
   children?: React.ReactNode;
   footer?: React.ReactNode;
   size?: Size;
-  /** Set false to require an explicit action to dismiss. */
   dismissible?: boolean;
   className?: string;
 }
 
-/**
- * Built on the native <dialog> element, which gives us focus trapping, inert
- * background content and Esc-to-close without a third-party dependency.
- */
 export function Modal({
   open,
   onClose,
@@ -56,14 +50,11 @@ export function Modal({
     }
   }, [open]);
 
-  // Esc triggers `cancel`; let the parent own the open state.
   const handleCancel = (event: React.SyntheticEvent<HTMLDialogElement>) => {
     event.preventDefault();
     if (dismissible) onClose();
   };
 
-  // The dialog element fills the viewport, so a click landing on it rather
-  // than on the panel is a backdrop click.
   const handleClick = (event: React.MouseEvent<HTMLDialogElement>) => {
     if (dismissible && event.target === ref.current) onClose();
   };
@@ -81,23 +72,6 @@ export function Modal({
         sizes[size],
       )}
     >
-      {/*
-        NOT `overflow-hidden`.
-
-        It used to be, to keep the header and footer rules inside the rounded
-        corners -- but it also clipped anything a child opened beyond the panel:
-        the date picker's calendar, launched from the filter form, was cut off
-        195px short and the days below the fold could not be clicked. The panel
-        paints its own background and rounding, and the header/footer are
-        transparent rules, so nothing needs clipping here.
-
-        Do NOT "fix" a popover inside a modal by portaling it to document.body.
-        This is a native <dialog> opened with showModal(), which puts it in the
-        browser's TOP LAYER -- above every normal stacking context regardless of
-        z-index. A portaled popover would render *behind* the modal and no
-        z-index could raise it. Rendering inline, as the pickers do, is what
-        keeps them in the top layer too.
-      */}
       <div
         className={cn(
           "w-full rounded-xl border border-border",

@@ -6,29 +6,11 @@ import {
 import { CustomerModel } from "../models/customer.model.js";
 import { dateRangeClause } from "../lib/date-range.js";
 
-/**
- * Dashboard figures. Every number here is computed by MongoDB -- these
- * pipelines return one already-shaped document rather than rows for the
- * application to add up, so the cost does not grow with the number of
- * transactions.
- *
- * Two different time semantics live in this file, and mixing them up would
- * quietly produce wrong numbers:
- *
- *   /volume and /amount  -- FLOW. What moved during the requested range.
- *                           Filtered on `createdAt`.
- *   /debt-credit-*       -- STOCK. What is outstanding right now. Deliberately
- *                           NOT date-filtered: a debt from two years ago is
- *                           still owed today, and dropping it because it falls
- *                           outside "this month" would understate the balance.
- */
-
 export interface DateRange {
   from?: Date;
   to?: Date;
 }
 
-/** Sums `field` into two buckets, one per transaction type, in one pass. */
 function splitByType(field: string, sellAs: string, buyAs: string) {
   return {
     $group: {
@@ -53,13 +35,6 @@ export interface VolumeStats {
   boughtGrams: number;
 }
 
-/**
- * Weight traded in the range.
- *
- * `soldGrams` is gold the shop sold (type 'sell'); `boughtGrams` is gold it
- * bought in (type 'buy') -- both from the shop's point of view, unlike the
- * customer-facing totals on the customers list.
- */
 export async function getVolume(range: DateRange): Promise<VolumeStats> {
   const [row] = await TransactionModel.aggregate<VolumeStats>([
     rangeMatch(range),
@@ -67,7 +42,6 @@ export async function getVolume(range: DateRange): Promise<VolumeStats> {
     { $project: { _id: 0, soldGrams: 1, boughtGrams: 1 } },
   ]);
 
-  // No matching transactions means no group, so the pipeline returns nothing.
   return row ?? { soldGrams: 0, boughtGrams: 0 };
 }
 
@@ -76,7 +50,6 @@ export interface AmountStats {
   boughtAmount: number;
 }
 
-/** Gross value traded in the range, in Toman. */
 export async function getAmount(range: DateRange): Promise<AmountStats> {
   const [row] = await TransactionModel.aggregate<AmountStats>([
     rangeMatch(range),
@@ -88,19 +61,11 @@ export async function getAmount(range: DateRange): Promise<AmountStats> {
 }
 
 export interface DebtCreditAmount {
-  /** Owed BY customers TO the shop -- unpaid 'sell' invoices. A receivable. */
   customerDebtToShop: number;
-  /** Owed BY the shop TO customers -- unpaid 'buy' invoices. A payable. */
   shopDebtToCustomer: number;
-  /** Positive when the shop is owed more than it owes. */
   net: number;
 }
 
-/**
- * Outstanding balances in Toman, as of now.
- *
- * Not date-filtered -- see the note at the top of this file.
- */
 export async function getDebtCreditAmount(): Promise<DebtCreditAmount> {
   const [row] = await TransactionModel.aggregate<
     Omit<DebtCreditAmount, "net">
@@ -125,14 +90,6 @@ export interface DebtCreditGrams {
   net: number;
 }
 
-/**
- * The same outstanding balances expressed in grams of gold.
- *
- * Each transaction is converted at its OWN `dailyGoldPricePerGram` -- the rate
- * the deal was struck at -- and only then summed. Converting the aggregate
- * total at today's rate instead would be a different and wrong number, because
- * it would silently restate historic debts at the current gold price.
- */
 export async function getDebtCreditGrams(): Promise<DebtCreditGrams> {
   const [row] = await TransactionModel.aggregate<
     Omit<DebtCreditGrams, "net">
@@ -147,8 +104,6 @@ export async function getDebtCreditGrams(): Promise<DebtCreditGrams> {
     {
       $project: {
         _id: 0,
-        // Round once at the end; per-row rounding already happened in
-        // withRemainingFields, this just tidies the accumulated float.
         customerDebtToShopGrams: { $round: ["$customerDebtToShopGrams", 3] },
         shopDebtToCustomerGrams: { $round: ["$shopDebtToCustomerGrams", 3] },
       },
@@ -172,18 +127,9 @@ export async function getDebtCreditGrams(): Promise<DebtCreditGrams> {
 export interface OpenTransactionsOptions extends DateRange {
   page: number;
   limit: number;
-  /** Narrows to one side of the ledger for the per-section detail modals. */
   type?: TransactionType;
 }
 
-/**
- * Every unsettled transaction, for the "more details" modals behind the
- * debt/credit tiles.
- *
- * `from`/`to` are optional and off by default, so this matches the running
- * totals it is drilling into. Passing them narrows to invoices *raised* in a
- * period, which is a different question -- one about flow, not stock.
- */
 export async function listOpenTransactions({
   page,
   limit,
@@ -202,9 +148,6 @@ export async function listOpenTransactions({
     ...withRemainingFields(),
     { $sort: { createdAt: -1, _id: -1 } },
     {
-      // One round trip for both the page and the count. The $lookup sits
-      // inside the items branch, after $skip/$limit, so it joins only the
-      // rows actually being returned.
       $facet: {
         items: [
           { $skip: (page - 1) * limit },
@@ -220,7 +163,6 @@ export async function listOpenTransactions({
               ],
             },
           },
-          // $lookup always yields an array; flatten to the single match.
           { $addFields: { customer: { $first: "$customer" } } },
           {
             $project: {

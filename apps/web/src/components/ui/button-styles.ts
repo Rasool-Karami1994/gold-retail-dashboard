@@ -1,20 +1,5 @@
 import { cn } from "@/lib/cn";
 
-/**
- * The button's classes, without the button.
- *
- * Deliberately NOT in button.tsx: that file is `"use client"`, and everything a
- * client module exports becomes a client reference -- calling `buttonStyles()`
- * from a server component would fail with "attempted to call it from the server
- * but it is on the client". A plain string builder has no reason to be client
- * code, so it lives here and button.tsx imports it.
- *
- * Its other job is links that look like buttons. A `<button>` nested inside an
- * `<a>` is invalid HTML and loses middle-click and "open in new tab", so
- * navigation uses `<Link className={buttonStyles(...)}>` rather than wrapping a
- * Button. The `disabled:` utilities in `base` simply never match on an anchor.
- */
-
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "link";
 export type ButtonSize = "sm" | "md" | "lg";
 
@@ -25,8 +10,6 @@ export const buttonBase =
   "disabled:pointer-events-none disabled:opacity-45";
 
 export const buttonVariants: Record<ButtonVariant, string> = {
-  // The reference's signature button: solid indigo with a soft blue halo that
-  // intensifies on hover.
   primary:
     "bg-primary-500 text-white shadow-glow-sm hover:bg-primary-600 hover:shadow-glow active:bg-primary-700",
   secondary:

@@ -1,22 +1,6 @@
 import { apiFetch, type Paginated } from "./api";
 import { normalizeMobile } from "./mobile";
 
-/**
- * Customer reads and the two-step "add customer" write.
- *
- * The registration flow spans three calls across two API groups, which is why
- * they live together here rather than beside the auth helpers:
- *
- *   1. POST /api/customer/auth/request-otp  { purpose: 'register' }
- *   2. POST /api/customer/auth/verify-otp   { purpose: 'register' }
- *   3. POST /api/admin/customers
- *
- * Step 3 is what creates the record. Steps 1 and 2 only prove the number
- * answers -- verifying a 'register' code establishes no session and creates no
- * customer, it just leaves a receipt the create endpoint looks for. See
- * `createCustomer` in apps/api/src/services/customer.service.ts.
- */
-
 export interface CustomerRow {
   id: string;
   firstName: string;
@@ -25,12 +9,6 @@ export interface CustomerRow {
   createdAt: string;
   updatedAt: string;
   transactionCount: number;
-  /**
-   * Both totals are from the CUSTOMER's side of the counter, and both are gross
-   * deal value rather than what has been settled:
-   *   totalPurchased -- bought from the shop ('sell' transactions)
-   *   totalSold      -- sold to the shop ('buy' transactions)
-   */
   totalPurchased: number;
   totalSold: number;
 }
@@ -48,7 +26,6 @@ export function fetchCustomers({
     page: String(page),
     limit: String(limit),
   });
-  // The API rejects an empty `search`, so omit it rather than sending "".
   if (search) params.set("search", search);
 
   return apiFetch<Paginated<CustomerRow>>(
@@ -56,17 +33,6 @@ export function fetchCustomers({
   );
 }
 
-/**
- * Finds the one customer who owns a mobile number, or null.
- *
- * `?search=` is a SUBSTRING match across name and mobile, which is right for a
- * directory search box and wrong for identifying a person: "0912" would come
- * back with half the shop. So the match is re-checked here on the normalised
- * number, and anything short of an exact hit counts as "not registered".
- *
- * A small limit rather than 1: the substring may well match several rows, and
- * the exact one is not guaranteed to sort first.
- */
 export async function findCustomerByMobile(
   mobile: string,
 ): Promise<CustomerRow | null> {
@@ -87,22 +53,11 @@ export interface CustomerDetailCustomer {
   firstName: string;
   lastName: string;
   mobile: string;
-  /** Virtual on the model, so it arrives already joined. */
   fullName: string;
   createdAt: string;
   updatedAt: string;
 }
 
-/**
- * One of the customer's transactions.
- *
- * These come back **hydrated** rather than lean, which is why `paidAmount`,
- * `remainingAmount` and `balanceDirection` are present at all -- they are
- * virtuals, and an aggregation could not have produced them.
- *
- * `customer` is NOT populated here (only `createdBy` is), so it is absent from
- * this type: on this screen every row belongs to the same person anyway.
- */
 export interface CustomerTransaction {
   id: string;
   invoiceNumber: string;
@@ -113,7 +68,6 @@ export interface CustomerTransaction {
   totalAmount: number;
   paidAmount: number;
   remainingAmount: number;
-  /** Which way an open balance points, already resolved by the model. */
   balanceDirection: "customer-owes-shop" | "shop-owes-customer" | "none";
   status: "open" | "settled";
   invoicePdfUrl: string | null;
@@ -122,11 +76,6 @@ export interface CustomerTransaction {
 
 export interface CustomerDetail {
   customer: CustomerDetailCustomer;
-  /**
-   * Lifetime figures across ALL the customer's transactions, not just the page
-   * below -- computed by their own aggregate on the server. Summing the visible
-   * rows instead would silently report "page 1 of their history" as the total.
-   */
   totals: {
     transactionCount: number;
     totalPurchased: number;
@@ -136,7 +85,6 @@ export interface CustomerDetail {
   pagination: { page: number; limit: number; total: number; pages: number };
 }
 
-/** The `page`/`limit` here paginate the transaction history, not the customer. */
 export function fetchCustomerDetail(
   id: string,
   { page, limit }: { page: number; limit: number },
@@ -152,24 +100,13 @@ export function fetchCustomerDetail(
 }
 
 export interface RequestOtpResult {
-  /** Normalised by the API. Use THIS for the later calls, not the raw input. */
   mobile: string;
   purpose: "register";
   expiresAt: string;
-  /** Seconds until the code dies, for the resend countdown. */
   expiresInSeconds: number;
-  /**
-   * Present only when the API is mocking SMS -- nothing was delivered, so this
-   * is the only way to finish registering someone locally. Its ABSENCE means a
-   * real message went out, so never default it.
-   */
   devOtpCode?: string;
 }
 
-/**
- * Issues a registration code. Admin-only at the API -- the public login page
- * cannot ask for one, which is what stops a stranger registering themselves.
- */
 export function requestRegisterOtp(mobile: string) {
   return apiFetch<RequestOtpResult>("/api/customer/auth/request-otp", {
     method: "POST",
@@ -203,11 +140,6 @@ export interface CreatedCustomer {
   updatedAt: string;
 }
 
-/**
- * Creates the record. 403s unless `verifyRegisterOtp` succeeded for this number
- * within the registration window (15 minutes by default), so it cannot be
- * called on its own to add an unverified number.
- */
 export function createCustomer(input: CreateCustomerInput) {
   return apiFetch<CreatedCustomer>("/api/admin/customers", {
     method: "POST",
@@ -220,8 +152,6 @@ export const customerKeys = {
   list: (page: number, limit: number, search: string) =>
     ["customers", "list", page, limit, search] as const,
   byMobile: (mobile: string) => ["customers", "by-mobile", mobile] as const,
-  // The page is part of the key: it paginates the transaction history, so two
-  // pages are two different cache entries for the same customer.
   detail: (id: string, page: number, limit: number) =>
     ["customers", "detail", id, page, limit] as const,
 };

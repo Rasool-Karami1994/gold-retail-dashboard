@@ -11,24 +11,8 @@ import {
   type OpenTransactionRow,
 } from "@/lib/stats-api";
 
-/**
- * The unsettled invoices behind the debt/credit tiles.
- *
- * `unit` decides which column leads. Section 2 is about Toman, section 3 about
- * the gram equivalent -- same rows either way, so the modal shows both figures
- * and only changes which one is emphasised. Hiding the other would force
- * someone comparing the two sections to reopen a different modal to see it.
- */
-
 const PAGE_SIZE = 10;
 
-/**
- * The ledger has two directions and they are NOT interchangeable -- see the
- * header comment in transaction.model.ts. An unpaid 'sell' is money owed TO the
- * shop; an unpaid 'buy' is money the shop OWES. Filtering happens on the server
- * via ?type=, so a page of one direction is a real page, not a client-side
- * slice of a mixed page.
- */
 type TypeFilter = "all" | "sell" | "buy";
 
 const FILTERS: { id: TypeFilter; label: string }[] = [
@@ -49,7 +33,6 @@ export function OpenTransactionsModal({
   const [page, setPage] = React.useState(1);
   const [type, setType] = React.useState<TypeFilter>("all");
 
-  // Page 3 of "all" is meaningless once the list is narrowed to one direction.
   React.useEffect(() => {
     setPage(1);
   }, [type]);
@@ -148,7 +131,6 @@ export function OpenTransactionsModal({
         width: "9rem",
         hideOnMobile: true,
       },
-      // Section's own unit first, the other after it.
       ...(unit === "amount"
         ? [amountColumn, gramsColumn]
         : [gramsColumn, amountColumn]),
@@ -206,8 +188,6 @@ export function OpenTransactionsModal({
             onPageChange={setPage}
             pageSize={PAGE_SIZE}
             totalRows={data?.pagination.total ?? 0}
-            // isFetching, not isPending: the query is disabled while the dialog is
-            // shut, which would leave it pending and render skeletons nobody sees.
             loading={isFetching}
             emptyMessage="حساب تسویه‌نشده‌ای وجود ندارد."
             caption="فهرست معاملات تسویه‌نشده"

@@ -10,43 +10,6 @@ import { nextSequence } from "./counter.model.js";
 import { CustomerModel } from "./customer.model.js";
 import { normalizeMobile } from "../lib/mobile.js";
 
-/**
- * A single counter-transaction between the shop and a customer.
- *
- * ---------------------------------------------------------------------------
- * DEBT / CREDIT LOGIC
- * ---------------------------------------------------------------------------
- * `totalAmount` is what the deal is worth; `paidAmount` is how much has changed
- * hands so far; `remainingAmount` is the difference. What a non-zero remainder
- * *means* depends entirely on `type`, because `type` says which direction the
- * gold moved:
- *
- *   type 'sell'  -- the shop sold gold to the customer.
- *                   remainingAmount > 0  =>  THE CUSTOMER OWES THE SHOP.
- *                   This is a receivable. It is money the shop is still waiting
- *                   to collect.
- *
- *   type 'buy'   -- the shop bought gold from the customer.
- *                   remainingAmount > 0  =>  THE SHOP OWES THE CUSTOMER.
- *                   This is a payable. It is money the shop still has to hand
- *                   over.
- *
- * In both cases `remainingAmount === 0` means nobody owes anybody and `status`
- * flips to 'settled'. The sign is never negative in normal operation; an
- * overpayment clamps to settled rather than reversing the direction, because a
- * refund is its own transaction, not a negative balance on this one.
- *
- * So a customer's overall position is NOT the sum of `remainingAmount` across
- * their transactions -- the 'sell' remainders and the 'buy' remainders point in
- * opposite directions and must be netted with the sign applied:
- *
- *   net = Σ(sell.remainingAmount) - Σ(buy.remainingAmount)
- *
- * net > 0 means the customer is in debt to the shop; net < 0 means the shop is
- * in debt to the customer. `netBalanceForCustomer()` below does exactly this.
- * ---------------------------------------------------------------------------
- */
-
 export const TRANSACTION_TYPES = ["sell", "buy"] as const;
 export const GOLD_TYPES = ["melted", "new", "second-hand"] as const;
 export const PAYMENT_METHODS = ["cash", "bank"] as const;
@@ -59,24 +22,10 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export type BankType = (typeof BANK_TYPES)[number];
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
 
-/**
- * Amounts are Toman. Money is stored as a JS number, which is a float, so
- * `weight * pricePerGram` is rounded to whole Toman on write and comparisons
- * use a tolerance rather than `=== 0`. Sub-Toman precision has no meaning at a
- * gold counter, and this keeps 0.0000001 remainders from parking an invoice in
- * 'open' forever.
- */
 const SETTLEMENT_TOLERANCE = 0.5;
 
-/** Invoice dates follow the shop's wall clock, not the server's UTC day. */
 const INVOICE_TIMEZONE = "Asia/Tehran";
 
-/**
- * One instalment against the parent transaction. Recorded as a subdocument
- * rather than its own collection because a payment has no life of its own --
- * it is never queried except through its invoice, and the whole set is needed
- * on every read anyway to compute the remainder.
- */
 const paymentSchema = new Schema(
   {
     method: {
@@ -91,9 +40,6 @@ const paymentSchema = new Schema(
       min: [0, "Payment amount cannot be negative"],
     },
 
-    // Bank-only fields. Required when method is 'bank', stripped when 'cash'
-    // (see the pre-validate hook below) so a cash row can never carry a stale
-    // card number from an edited entry.
     bankType: {
       type: String,
       enum: BANK_TYPES,
@@ -102,22 +48,9 @@ const paymentSchema = new Schema(
       },
     },
 
-    /**
-     * Where the money landed, recorded two ways because the two bank routes
-     * identify an account differently.
-     *
-     * A card-to-card transfer names a card; every other route settles to an
-     * IBAN and has no card in the transaction at all. They are separate fields
-     * rather than one loosely-typed column because everything downstream has to
-     * tell them apart -- the invoice prints "کارت ****1234" for one and "شبا"
-     * for the other, and a single column would make every reader sniff the
-     * format to know which it was holding.
-     */
     destinationCard: {
       type: String,
       trim: true,
-      // The shop's own receiving card, so this is not customer PAN data. Still
-      // stored as the 16 digits only -- no expiry, no CVV, ever.
       match: [/^\d{16}$/, "Destination card must be 16 digits"],
     },
 
@@ -125,9 +58,6 @@ const paymentSchema = new Schema(
       type: String,
       trim: true,
       uppercase: true,
-      // Iranian IBAN ("شبا"): the literal IR, then 24 digits, 26 characters in
-      // all. Stored bare -- no spaces, no IR- prefix variants -- so two records
-      // of the same account compare equal.
       match: [/^IR\d{24}$/, "Destination IBAN must be IR followed by 24 digits"],
     },
 
@@ -140,7 +70,6 @@ const paymentSchema = new Schema(
   { _id: true },
 );
 
-// Cash payments carry no bank metadata; drop anything that slipped through.
 paymentSchema.pre("validate", function (next) {
   if (this.method === "cash") {
     this.bankType = undefined;
@@ -152,11 +81,6 @@ paymentSchema.pre("validate", function (next) {
 
 const transactionSchema = new Schema(
   {
-    /**
-     * `INV-YYYYMMDD-XXXX`, e.g. `INV-20260801-0007`. Generated in the
-     * pre-validate hook from an atomic per-day counter, so concurrent inserts
-     * cannot collide. Never assign this by hand.
-     */
     invoiceNumber: {
       type: String,
       required: true,
@@ -172,7 +96,6 @@ const transactionSchema = new Schema(
       required: true,
     },
 
-    /** Direction of the deal. Drives the whole debt/credit reading -- see above. */
     type: {
       type: String,
       enum: TRANSACTION_TYPES,
@@ -191,22 +114,12 @@ const transactionSchema = new Schema(
       min: [0, "Weight cannot be negative"],
     },
 
-    /** The shop's quoted rate on the day of the deal, in Toman per gram. */
     dailyGoldPricePerGram: {
       type: Number,
       required: true,
       min: [0, "Price per gram cannot be negative"],
     },
 
-    /**
-     * The shop's margin on this deal, as a percentage of the base amount.
-     *
-     * Defaulted to 0 and required, so every transaction written before this
-     * field existed reads as "no margin" without a migration -- and, because
-     * a zero margin makes the calculation below collapse back to
-     * `weight * pricePerGram`, their stored `totalAmount` stays exactly what
-     * it was.
-     */
     profitPercentage: {
       type: Number,
       required: true,
@@ -215,14 +128,6 @@ const transactionSchema = new Schema(
       max: [100, "Profit percentage cannot exceed 100"],
     },
 
-    /**
-     * The margin in Toman, derived in pre-validate and STORED.
-     *
-     * Stored rather than recomputed on read for the same reason totalAmount is:
-     * an invoice already handed to a customer must not change its figures
-     * because the percentage on the schema, or the rounding, was revised later.
-     * What the customer was shown is what stays on the record.
-     */
     profitAmount: {
       type: Number,
       required: true,
@@ -230,19 +135,6 @@ const transactionSchema = new Schema(
       min: [0, "Profit amount cannot be negative"],
     },
 
-    /**
-     * Derived in pre-validate:
-     *
-     *   base   = goldWeightGrams * dailyGoldPricePerGram
-     *   profit = base * (profitPercentage / 100)
-     *   sell   -> base + profit   (the shop's margin is added to what the
-     *                              customer pays)
-     *   buy    -> base - profit   (the margin is withheld from what the shop
-     *                              hands over)
-     *
-     * Stored rather than virtual so it can be summed, sorted and indexed --
-     * and so a historical invoice keeps its value if the rules ever change.
-     */
     totalAmount: {
       type: Number,
       required: true,
@@ -254,20 +146,12 @@ const transactionSchema = new Schema(
       default: [],
     },
 
-    /**
-     * Derived from the payments, recomputed on every document save. Stored
-     * rather than virtual because virtuals cannot be queried or indexed, and
-     * "show me every open invoice" is the single most common filter in the app.
-     *
-     * See the caveat on `addPayment()` about keeping this honest.
-     */
     status: {
       type: String,
       enum: TRANSACTION_STATUSES,
       default: "open",
     },
 
-    /** Set once the PDF has been rendered and uploaded; null until then. */
     invoicePdfUrl: {
       type: String,
       trim: true,
@@ -295,7 +179,6 @@ const transactionSchema = new Schema(
   },
 );
 
-/** Sum of every recorded instalment. */
 transactionSchema.virtual("paidAmount").get(function () {
   return (this.payments ?? []).reduce(
     (sum, payment) => sum + (payment.amount ?? 0),
@@ -303,10 +186,6 @@ transactionSchema.virtual("paidAmount").get(function () {
   );
 });
 
-/**
- * What is still outstanding. Who owes it depends on `type` -- see the header
- * comment. Clamped at zero: an overpayment does not become a negative debt.
- */
 transactionSchema.virtual("remainingAmount").get(function () {
   const paid = (this.payments ?? []).reduce(
     (sum, payment) => sum + (payment.amount ?? 0),
@@ -315,10 +194,6 @@ transactionSchema.virtual("remainingAmount").get(function () {
   return Math.max(0, Math.round((this.totalAmount - paid) * 100) / 100);
 });
 
-/**
- * Direction of the outstanding balance, as plain English for the UI:
- *   'customer-owes-shop' | 'shop-owes-customer' | 'none'
- */
 transactionSchema.virtual("balanceDirection").get(function () {
   const paid = (this.payments ?? []).reduce(
     (sum, payment) => sum + (payment.amount ?? 0),
@@ -330,20 +205,6 @@ transactionSchema.virtual("balanceDirection").get(function () {
   return this.type === "sell" ? "customer-owes-shop" : "shop-owes-customer";
 });
 
-/**
- * The virtuals above exist only on a hydrated document, so an aggregation
- * pipeline cannot see them -- it runs inside MongoDB, where `remainingAmount`
- * is not a stored field. Reporting queries therefore have to recompute it.
- *
- * These stages are that recomputation, and they live here rather than in the
- * stats service so the two definitions sit within a screen of each other.
- *
- *   !! If you change the `remainingAmount` virtual above, change this too. !!
- *
- * The arithmetic is deliberately identical: subtract, round to 2 decimals,
- * then clamp at zero so an overpayment reads as settled rather than as a
- * negative debt.
- */
 export function withRemainingFields() {
   return [
     { $addFields: { paidAmount: { $sum: "$payments.amount" } } },
@@ -359,15 +220,6 @@ export function withRemainingFields() {
     },
     {
       $addFields: {
-        /**
-         * What the outstanding balance is worth in gold, valued at the rate
-         * the deal itself was struck at -- not today's rate. A debt agreed at
-         * last year's price is still that many grams.
-         *
-         * The guard is not paranoia: `dailyGoldPricePerGram` has `min: 0`, and
-         * dividing by zero in an aggregation yields an error that kills the
-         * whole pipeline rather than one row.
-         */
         remainingGrams: {
           $cond: [
             { $gt: ["$dailyGoldPricePerGram", 0] },
@@ -386,26 +238,11 @@ export function withRemainingFields() {
 }
 
 transactionSchema.pre("validate", async function (next) {
-  /**
-   * Recompute the total whenever an input to it moves. Whole Toman throughout.
-   *
-   * GUARDED ON `isModified`, WHICH IS WHAT PROTECTS HISTORICAL INVOICES. A
-   * record loaded and saved for some unrelated reason does not pass this test,
-   * so its figures are left exactly as they were written. And even if it did:
-   * `profitPercentage` defaults to 0, which collapses the arithmetic below back
-   * to `weight * pricePerGram` -- the formula those records were written with.
-   *
-   * The base is rounded before the margin is taken, and the margin before it is
-   * applied, so `base ± profit === total` holds exactly. Rounding only at the
-   * end would leave the breakdown on the invoice off by a Toman against its own
-   * total, which is the sort of thing a customer notices and nobody can explain.
-   */
   if (
     this.isNew ||
     this.isModified("goldWeightGrams") ||
     this.isModified("dailyGoldPricePerGram") ||
     this.isModified("profitPercentage") ||
-    // The sign flips with the direction of the deal, so this is an input too.
     this.isModified("type")
   ) {
     const baseAmount = Math.round(
@@ -418,7 +255,6 @@ transactionSchema.pre("validate", async function (next) {
       this.type === "buy" ? baseAmount - profit : baseAmount + profit;
   }
 
-  // Derive status from the payments on every save.
   const paid = (this.payments ?? []).reduce(
     (sum, payment) => sum + (payment.amount ?? 0),
     0,
@@ -426,8 +262,6 @@ transactionSchema.pre("validate", async function (next) {
   this.status =
     this.totalAmount - paid <= SETTLEMENT_TOLERANCE ? "settled" : "open";
 
-  // Assign the invoice number last, so a document that fails validation for
-  // another reason has not already burned a sequence value.
   if (this.isNew && !this.invoiceNumber) {
     this.invoiceNumber = await generateInvoiceNumber();
   }
@@ -435,10 +269,7 @@ transactionSchema.pre("validate", async function (next) {
   next();
 });
 
-/** `INV-YYYYMMDD-XXXX` on the shop's local day, with an atomic per-day sequence. */
 async function generateInvoiceNumber(when = new Date()): Promise<string> {
-  // en-CA renders as YYYY-MM-DD, which is the cheapest way to get a
-  // zero-padded date in a specific timezone.
   const stamp = new Intl.DateTimeFormat("en-CA", {
     timeZone: INVOICE_TIMEZONE,
     year: "numeric",
@@ -452,45 +283,19 @@ async function generateInvoiceNumber(when = new Date()): Promise<string> {
   return `INV-${stamp}-${String(seq).padStart(4, "0")}`;
 }
 
-// `invoiceNumber` is already indexed by `unique: true` on the field.
-
-// Customer statement: every invoice for one customer, newest first.
 transactionSchema.index({ customer: 1, createdAt: -1 });
 
-// Same, narrowed to what is still outstanding -- the debt/credit report.
 transactionSchema.index({ customer: 1, status: 1, type: 1 });
 
-// Dashboard list and date-range reports.
 transactionSchema.index({ createdAt: -1 });
 
-// The common filter combinations on the transactions table.
 transactionSchema.index({ status: 1, createdAt: -1 });
 transactionSchema.index({ type: 1, createdAt: -1 });
 transactionSchema.index({ status: 1, type: 1, createdAt: -1 });
 
-// Per-cashier daily reconcile.
 transactionSchema.index({ createdBy: 1, createdAt: -1 });
 
-// Turnover by product category.
 transactionSchema.index({ goldType: 1, createdAt: -1 });
-
-/**
- * NOTE ON FILTERING BY CUSTOMER MOBILE
- *
- * There is deliberately no index here for it, because there cannot be one.
- * `populate()` is not a join -- Mongoose issues a second query against the
- * customers collection after this one returns, so `Transaction` has no mobile
- * field to index and `.find({ "customer.mobile": … })` matches nothing.
- *
- * Resolve the customer first and filter on the id (the unique index on
- * `Customer.mobile` makes the lookup a point query) -- that is what
- * `findByCustomerMobile()` below does. `$lookup` in an aggregation works too,
- * but it is slower here and buys nothing.
- *
- * If mobile search ever becomes hot enough to matter, denormalise it onto this
- * schema as `customerMobile` and index that -- at the cost of having to
- * rewrite it whenever a customer changes their number.
- */
 
 export type Payment = InferSchemaType<typeof paymentSchema>;
 export type Transaction = InferSchemaType<typeof transactionSchema>;
@@ -510,13 +315,6 @@ export interface AddPaymentInput {
   paidAt?: Date;
 }
 
-/**
- * Why the instalment was or was not recorded.
- *
- * A result rather than an exception because two of the three failures are
- * ordinary answers the API has to phrase differently -- 409 for an invoice that
- * is already settled, 400 carrying the balance for one that would be overpaid.
- */
 export type AddPaymentOutcome =
   | { ok: true; transaction: TransactionDocument }
   | { ok: false; reason: "not-found" }
@@ -528,7 +326,6 @@ export type AddPaymentOutcome =
       transaction: TransactionDocument;
     };
 
-/** No document methods. `addPayment` is a static -- see the note on it. */
 export interface TransactionMethods {}
 
 export type TransactionDocument = HydratedDocument<
@@ -538,11 +335,6 @@ export type TransactionDocument = HydratedDocument<
 
 export interface TransactionModelType
   extends Model<Transaction, {}, TransactionMethods, TransactionVirtuals> {
-  /**
-   * The ONLY supported way to record an instalment. Atomic, and it re-derives
-   * `status` itself -- see the note on the implementation for why a
-   * load-mutate-save was not good enough.
-   */
   addPayment(id: string, input: AddPaymentInput): Promise<AddPaymentOutcome>;
 
   findByCustomerMobile(
@@ -557,38 +349,6 @@ export interface TransactionModelType
   }>;
 }
 
-/**
- * Records an instalment and re-derives `status`, in ONE database operation.
- *
- * WHY THIS IS NOT A LOAD-MUTATE-SAVE. It used to be, and that read-then-write
- * had a race that money cares about. Two payments arriving together each loaded
- * the document, each saw the same `payments`, and each computed `status` from
- * its own view. Mongoose sends the array change as `$push`, so both instalments
- * survived -- but `status` went out as a plain `$set` from whichever request
- * finished last. Two payments of 50 against a total of 100 left the invoice
- * fully paid and still marked `open`, and no later read would notice.
- *
- * So the guard and the recomputation are expressed as the update itself:
- *
- *   - the filter admits only an `open` transaction whose remaining balance
- *     covers the amount, so a settled invoice and an overpayment are rejected
- *     by not matching rather than by a check that can go stale between the read
- *     and the write;
- *   - the pipeline appends the instalment and then re-derives `status` from
- *     the array it just produced, inside the same operation.
- *
- * THE PRE-VALIDATE HOOK DOES NOT RUN HERE, which is exactly the hazard the note
- * on the model warns about -- a query update that leaves `status` stale. It is
- * safe only because the pipeline below recomputes `status` itself. If you add a
- * field the hook derives, derive it here too or the warning becomes true again.
- *
- * Returns an outcome rather than throwing, because "already settled" and
- * "exceeds the balance" are answers the caller has to turn into different HTTP
- * statuses, and one of them carries the remaining amount.
- */
-// Uses TransactionModel rather than `this`: Mongoose types a static's `this` as
-// the base Model, which loses the return types this function depends on. The
-// model is defined at the bottom of the file and exists long before any caller.
 transactionSchema.statics.addPayment = async function (
   id: string,
   input: AddPaymentInput,
@@ -596,9 +356,6 @@ transactionSchema.statics.addPayment = async function (
   const self = TransactionModel;
   if (!Types.ObjectId.isValid(id)) return { ok: false, reason: "not-found" };
 
-  // Built here rather than trusting the caller's object wholesale: the
-  // subdocument's own pre-validate hook -- which strips bank fields off a cash
-  // row -- does not run for a pipeline update either.
   const payment = {
     _id: new Types.ObjectId(),
     method: input.method,
@@ -617,7 +374,6 @@ transactionSchema.statics.addPayment = async function (
       : {}),
   };
 
-  /** Total minus everything paid so far, as an aggregation expression. */
   const remainingExpr = {
     $subtract: ["$totalAmount", { $sum: "$payments.amount" }],
   };
@@ -626,9 +382,6 @@ transactionSchema.statics.addPayment = async function (
     {
       _id: new Types.ObjectId(id),
       status: "open",
-      // The same tolerance settlement uses. A UI that offers "pay the rest"
-      // can compute a figure a fraction of a Toman over the balance, and
-      // refusing that would be arithmetic pedantry rather than a guard.
       $expr: {
         $lte: [input.amount, { $add: [remainingExpr, SETTLEMENT_TOLERANCE] }],
       },
@@ -636,8 +389,6 @@ transactionSchema.statics.addPayment = async function (
     [
       { $set: { payments: { $concatArrays: ["$payments", [payment]] } } },
       {
-        // Reads the array the stage above just wrote, so the new instalment is
-        // counted. This is the pre-validate hook's rule, expressed in Mongo.
         $set: {
           status: {
             $cond: [
@@ -646,8 +397,6 @@ transactionSchema.statics.addPayment = async function (
               "open",
             ],
           },
-          // Set explicitly rather than relying on Mongoose's timestamps with a
-          // pipeline update, which is not a behaviour worth assuming.
           updatedAt: "$$NOW",
         },
       },
@@ -657,8 +406,6 @@ transactionSchema.statics.addPayment = async function (
 
   if (updated) return { ok: true, transaction: updated };
 
-  // Nothing matched. Re-read to say WHY, so the caller can answer 404, 409 or
-  // 400 rather than a single unhelpful failure.
   const current = await self.findById(id);
   if (!current) return { ok: false, reason: "not-found" };
   if (current.status === "settled") {
@@ -676,7 +423,6 @@ transactionSchema.statics.findByCustomerMobile = async function (
   mobile: string,
   filter: Record<string, unknown> = {},
 ) {
-  // Point query on the unique index, then a normal indexed query here.
   const customer = await CustomerModel.findOne({
     mobile: normalizeMobile(mobile),
   })
@@ -688,10 +434,6 @@ transactionSchema.statics.findByCustomerMobile = async function (
   return this.find({ customer: customer._id, ...filter }).sort({ createdAt: -1 });
 };
 
-/**
- * Nets a customer's open balances into a single position.
- * `net > 0` -- the customer owes the shop. `net < 0` -- the shop owes them.
- */
 transactionSchema.statics.netBalanceForCustomer = async function (
   customerId: Types.ObjectId | string,
 ) {

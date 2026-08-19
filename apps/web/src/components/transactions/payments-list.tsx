@@ -5,18 +5,6 @@ import { DataTable, formatJalali, type Column } from "@/components/ui";
 import { formatToman } from "@/lib/format";
 import type { TransactionPayment } from "@/lib/transactions-api";
 
-/**
- * The instalments recorded against one invoice, read-only.
- *
- * Shared for the same reason `transactions-table.tsx` is: the detail page and
- * the add-payment page both show this list, and a second copy would be a second
- * place to update when a payment grows a field -- which it just did, when paya
- * and bridge started recording a Sheba instead of a card.
- *
- * Nothing route-specific belongs here. It renders a payment; where the page
- * sits is the caller's business.
- */
-
 const METHOD_LABELS = { cash: "نقدی", bank: "بانکی" } as const;
 
 const BANK_TYPE_LABELS = {
@@ -28,7 +16,6 @@ const BANK_TYPE_LABELS = {
 
 export interface PaymentsListProps {
   payments: TransactionPayment[];
-  /** Overridden by the add-payment page, where the list is context, not the subject. */
   title?: React.ReactNode;
   emptyMessage?: React.ReactNode;
 }
@@ -73,9 +60,6 @@ export function PaymentsList({
       },
       {
         id: "destination",
-        // One column for both, because a row only ever has one: card-to-card
-        // records a card, the account-settled routes record a Sheba. Two would be
-        // half empty whichever route the shop uses most.
         header: "مقصد",
         cell: (row) => {
           const value = row.destinationCard ?? row.destinationIban;
@@ -122,8 +106,6 @@ export function PaymentsList({
       <DataTable
         data={payments}
         columns={columns}
-        // Payments are a handful per invoice and arrive whole with it, so there
-        // is nothing to page through.
         rowKey={(row, index) => `${row.paidAt}-${index}`}
         paginated={false}
         emptyMessage={emptyMessage}

@@ -4,22 +4,6 @@ import * as React from "react";
 import { Card, CardContent } from "./card";
 import { buttonStyles } from "./button-styles";
 
-/**
- * The body of every `error.tsx` in this app.
- *
- * Next's error boundaries catch what a query's own `isError` branch cannot: a
- * render that threw, a bad shape from the API that broke a `.map`, a bug in a
- * cell renderer. Those leave the segment with no UI at all, and without a
- * boundary the whole app blanks to Next's default page.
- *
- * `reset()` re-renders the segment without a full reload, so a transient
- * failure costs one click rather than the page state.
- *
- * The message is deliberately generic. `error.message` is whatever threw --
- * often English, sometimes a stack fragment -- and this is a Persian UI shown
- * to shop staff and customers. The digest is printed small because it is the
- * only thing that ties a user's report to a server log line.
- */
 export function RouteError({
   error,
   reset,
@@ -32,8 +16,6 @@ export function RouteError({
   description?: string;
 }) {
   React.useEffect(() => {
-    // The boundary swallows it otherwise, and a silent failure in production is
-    // one nobody can diagnose.
     console.error("[route-error]", error);
   }, [error]);
 

@@ -13,24 +13,8 @@ import {
   type TransactionDetail,
 } from "@/lib/transactions-api";
 
-/**
- * What the cashier sees once the sale is recorded.
- *
- * THE INVOICE IS NOT READY WHEN THIS MOUNTS. The create endpoint starts the PDF
- * render in the background and answers immediately -- rendering takes Chrome a
- * second or more, and the API deliberately refuses to make the counter wait on
- * it or to fail a recorded sale because a renderer broke. So `invoicePdfUrl` is
- * always null in the create response, and this polls the transaction until it
- * appears.
- *
- * If it never appears the render failed, and the API has an endpoint for
- * exactly that -- hence the retry button rather than a dead "preparing…".
- */
-
 const POLL_INTERVAL_MS = 1500;
-/** Long enough for a cold Chrome, short enough not to look stuck. */
 const POLL_TIMEOUT_MS = 15_000;
-/** Time on the success screen before moving on to the invoice itself. */
 const REDIRECT_SECONDS = 8;
 
 export function SuccessPanel({ transaction }: { transaction: TransactionDetail }) {
@@ -44,7 +28,6 @@ export function SuccessPanel({ transaction }: { transaction: TransactionDetail }
   const { data } = useQuery({
     queryKey: transactionKeys.detail(transaction.id),
     queryFn: () => fetchTransaction(transaction.id),
-    // Stop the moment the URL lands, and stop asking once we have given up.
     refetchInterval: (query) =>
       query.state.data?.invoicePdfUrl || gaveUp ? false : POLL_INTERVAL_MS,
     enabled: !gaveUp,
@@ -63,13 +46,6 @@ export function SuccessPanel({ transaction }: { transaction: TransactionDetail }
     return () => clearTimeout(timer);
   }, [pdfUrl]);
 
-  /**
-   * The countdown to the detail page.
-   *
-   * Cancellable, and cancelled by opening the PDF: yanking the screen away
-   * while someone is reading the link they were just offered is the kind of
-   * "helpful" redirect that loses work.
-   */
   React.useEffect(() => {
     if (!redirecting) return;
 
@@ -144,11 +120,6 @@ export function SuccessPanel({ transaction }: { transaction: TransactionDetail }
           )}
         </div>
 
-        {/*
-          Only when the API is mocking SMS: the customer got nothing, so the
-          admin has to pass the link on themselves -- WhatsApp, Telegram, or
-          reading it out at the counter.
-        */}
         {data?.devInvoiceMessage && (
           <DevInvoiceMessage message={data.devInvoiceMessage} />
         )}
@@ -183,13 +154,6 @@ export function SuccessPanel({ transaction }: { transaction: TransactionDetail }
   );
 }
 
-/**
- * The message that would have been texted, with a one-click copy.
- *
- * The whole message rather than just the URL: it carries the invoice number and
- * the amount too, which is what makes it sendable as-is instead of something
- * the admin has to rewrite around a bare link.
- */
 function DevInvoiceMessage({ message }: { message: string }) {
   const [copied, setCopied] = React.useState(false);
 
@@ -197,12 +161,8 @@ function DevInvoiceMessage({ message }: { message: string }) {
     try {
       await navigator.clipboard.writeText(message);
       setCopied(true);
-      // Reverts so a second send doesn't look like it silently failed.
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard access can be refused (insecure origin, denied permission).
-      // The text is on screen and selectable, so this is a downgrade, not a
-      // dead end -- say so rather than failing silently.
       toast.error("کپی خودکار ممکن نشد", {
         description: "متن را به صورت دستی انتخاب و کپی کنید.",
       });
@@ -224,9 +184,6 @@ function DevInvoiceMessage({ message }: { message: string }) {
         این متن را برای مشتری بفرستید تا فاکتورش را ببیند.
       </p>
 
-      {/* dir="ltr" is wrong for the Persian lines but right for the URL, which
-          is the part being copied by eye. whitespace-pre-line keeps the three
-          lines the SMS actually has. */}
       <pre className="overflow-x-auto whitespace-pre-line rounded-md bg-surface-sunken p-3 text-2xs leading-relaxed text-fg-secondary">
         {message}
       </pre>

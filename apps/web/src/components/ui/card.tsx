@@ -2,9 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 
 type CardProps = React.HTMLAttributes<HTMLDivElement> & {
-  /** `raised` is the lighter panel used for stat tiles in the reference. */
   variant?: "default" | "raised";
-  /** Adds a hover lift, for cards that act as links. */
   interactive?: boolean;
 };
 

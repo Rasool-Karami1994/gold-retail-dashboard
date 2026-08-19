@@ -10,25 +10,6 @@ import {
 } from "@/config/routes";
 import { readSession } from "@/lib/session";
 
-/**
- * Route guard for both audiences.
- *
- *   /                 signed out          -> the customer sign-in form
- *                     customer            -> /dashboard
- *                     admin               -> /admin/overview
- *   /admin            signed out          -> /admin/login
- *                     admin               -> /admin/overview
- *   /admin/*          not an admin        -> /admin/login
- *   everything else   not a customer      -> /
- *
- * A signed-in user who lands on a login page is bounced to their own home, so
- * the back button doesn't strand them on a form they don't need.
- *
- * This is a redirect layer, not an authorisation boundary. It only sees whether
- * the JWT verifies -- the API re-checks the same cookie on every call via
- * `authenticate` + `requireRole`. Middleware being bypassed would expose no
- * data on its own.
- */
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const cookies = request.cookies;
@@ -41,30 +22,15 @@ export async function middleware(request: NextRequest) {
   const redirect = (to: string) =>
     NextResponse.redirect(new URL(to, request.url));
 
-  /** Sends the user to `loginPath`, remembering where they were headed. */
   const redirectToLogin = (loginPath: string) => {
     const url = new URL(loginPath, request.url);
     const intended = `${pathname}${search}`;
-    // Only worth remembering if it isn't the default landing page anyway.
     if (pathname !== "/") {
       url.searchParams.set(RETURN_TO_PARAM, intended);
     }
     return NextResponse.redirect(url);
   };
 
-  /**
-   * Development-only routes, answered before anything else.
-   *
-   * Ahead of the auth check on purpose: a signed-out visitor should get the
-   * same answer as a signed-in one, because in a production build the route
-   * genuinely does not exist. Bouncing to a login page first would advertise
-   * that there is something behind it.
-   *
-   * Rewritten rather than redirected so the response really is a 404 carrying
-   * the app's own not-found page, which is indistinguishable from a typo.
-   * `IS_DEV` is inlined at build time, so this whole branch is dead code in
-   * development and the gallery is reachable as usual.
-   */
   if (!IS_DEV && isDevOnlyPath(pathname)) {
     return NextResponse.rewrite(new URL("/_not-found", request.url));
   }
@@ -72,9 +38,6 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/") {
     if (admin) return redirect(ROUTES.adminHome);
     if (customer) return redirect(ROUTES.customerHome);
-    // Signed out: this IS the sign-in page, so render it. Anyone already signed
-    // in is bounced above, so the back button cannot strand them on a form they
-    // no longer need.
     return NextResponse.next();
   }
 
@@ -84,16 +47,11 @@ export async function middleware(request: NextRequest) {
     }
 
     if (pathname === ROUTES.adminLogin) {
-      // Already signed in; no reason to show the form.
       return admin ? redirect(ROUTES.adminHome) : NextResponse.next();
     }
 
-    // A customer session is not an admin session -- same redirect either way.
     return admin ? NextResponse.next() : redirectToLogin(ROUTES.adminLogin);
   }
-
-  // No branch for `customerLogin` here: it is "/", which the root block above
-  // already answered.
 
   if (isPublicPath(pathname)) {
     return NextResponse.next();
@@ -103,13 +61,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  /**
-   * Everything except Next's own assets and files with an extension.
-   *
-   * `/api` is excluded because this app doesn't serve one -- the Express API is
-   * a separate origin. Drop that segment from the pattern if route handlers are
-   * ever added here and should be guarded.
-   */
   matcher: [
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.[\\w]+$).*)",
   ],

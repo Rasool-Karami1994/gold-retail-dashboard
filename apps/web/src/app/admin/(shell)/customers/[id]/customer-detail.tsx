@@ -21,12 +21,6 @@ import { CUSTOMERS } from "../routes";
 
 const PAGE_SIZE = 10;
 
-/**
- * The customer column is left out: every row on this screen is the same person,
- * and the endpoint does not populate it anyway. The width it frees pays for the
- * date, the paid figure and the status -- the three things a history is read
- * for and a range-filtered list is not.
- */
 const HISTORY_COLUMNS: TransactionColumnId[] = [
   "invoiceNumber",
   "date",
@@ -42,8 +36,6 @@ const HISTORY_COLUMNS: TransactionColumnId[] = [
 export function CustomerDetail({ id }: { id: string }) {
   const [page, setPage] = React.useState(1);
 
-  // Navigating from one customer to another reuses this component, and page 3
-  // of the last person's history means nothing for the next one.
   React.useEffect(() => {
     setPage(1);
   }, [id]);
@@ -51,11 +43,7 @@ export function CustomerDetail({ id }: { id: string }) {
   const { data, isPending, isFetching, error, refetch } = useQuery({
     queryKey: customerKeys.detail(id, page, PAGE_SIZE),
     queryFn: () => fetchCustomerDetail(id, { page, limit: PAGE_SIZE }),
-    // Keeps the header and the current rows on screen while the next page
-    // loads, so paging doesn't blank a screen that is mostly unchanged.
     placeholderData: keepPreviousData,
-    // A mistyped or deleted id is a 404 and will stay one; retrying it three
-    // times only delays the message.
     retry: (count, err) =>
       !(err instanceof ApiError && err.status === 404) && count < 2,
   });
@@ -85,7 +73,6 @@ export function CustomerDetail({ id }: { id: string }) {
         description={
           customer ? (
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              {/* dir="ltr" so the leading zero stays on the left. */}
               <span className="font-mono text-fg-secondary" dir="ltr">
                 {customer.mobile}
               </span>
@@ -111,28 +98,6 @@ export function CustomerDetail({ id }: { id: string }) {
             </Icon>
           }
         />
-        {/*
-          LABELLED FROM THE SHOP'S SIDE OF THE COUNTER, because this is the
-          staff panel and everything else in it already is -- a transaction of
-          type 'sell' is badged "فروش به مشتری" in the list and on the detail
-          page.
-
-          The API's field names are the customer's side: `totalPurchased` is
-          what the CUSTOMER bought, which is the shop SELLING (type 'sell'), and
-          `totalSold` is what they sold to the shop (type 'buy'). Reading those
-          names as though they were the shop's is what put the wrong figure
-          under each heading -- a customer with one sale showed it under
-          "مجموع خرید". Naming the direction outright is what stops it
-          happening again; "فروش" alone is ambiguous on this screen.
-        */}
-        {/*
-          Tones follow the `type` badge in the transactions table below, not
-          an in/out reading of the money: a 'sell' is amber there and a 'buy' is
-          green, so the same deal has to carry the same colour in the summary
-          above it. Two colour languages on one screen is worse than either.
-          Change one, change the other -- the badge lives in
-          components/transactions/transactions-table.tsx.
-        */}
         <StatTile
           label="مجموع فروش به مشتری (تومان)"
           value={totals ? formatToman(totals.totalPurchased) : null}
@@ -175,9 +140,6 @@ export function CustomerDetail({ id }: { id: string }) {
           onPageChange={setPage}
           pageSize={PAGE_SIZE}
           totalRows={data?.pagination.total ?? 0}
-          // isPending, not isFetching: with keepPreviousData the rows on screen
-          // during a page change are real, and swapping them for skeletons
-          // would flash the table on every click of the pager.
           loading={isPending}
           emptyMessage="این مشتری هنوز معامله‌ای ندارد."
           caption="تاریخچه‌ی معاملات مشتری"
@@ -188,10 +150,6 @@ export function CustomerDetail({ id }: { id: string }) {
   );
 }
 
-/**
- * One headline figure, after the stat cards in
- * /design-reference/statistics-card.jpg: a tinted icon chip beside the number.
- */
 function StatTile({
   label,
   value,
@@ -199,7 +157,6 @@ function StatTile({
   tone = "primary",
 }: {
   label: string;
-  /** null while loading. */
   value: string | null;
   icon: React.ReactNode;
   tone?: "primary" | "success" | "warning";
@@ -235,10 +192,6 @@ function StatTile({
   );
 }
 
-/**
- * A failed detail is not a toast: there is nothing behind it to go back to, so
- * the message replaces the screen and carries the way out.
- */
 function ErrorState({
   error,
   onRetry,

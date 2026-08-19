@@ -4,14 +4,6 @@ import { HttpError } from "./error-handler.js";
 
 type Source = "body" | "query" | "params";
 
-/**
- * Parses one part of the request against a Zod schema, or 400s with per-field
- * details.
- *
- * The parsed value goes on `res.locals.validated` rather than back onto the
- * request: in Express 4 `req.query` is a prototype getter with no setter, so
- * assigning to it throws under ESM's strict mode.
- */
 export function validate(
   schema: ZodTypeAny,
   source: Source = "body",
@@ -37,7 +29,6 @@ export function validate(
   };
 }
 
-/** Typed accessor for whatever `validate()` most recently parsed. */
 export function validated<S extends ZodTypeAny>(res: Response, _schema: S): z.infer<S> {
   return res.locals.validated as z.infer<S>;
 }

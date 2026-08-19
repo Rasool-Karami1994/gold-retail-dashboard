@@ -29,10 +29,6 @@ import { CustomerFiltersModal } from "./filters-modal";
 
 const PAGE_SIZE = 20;
 
-/**
- * The same columns the admin list shows, minus the ones that identify the
- * customer -- on this screen every row is the reader.
- */
 const COLUMNS: TransactionColumnId[] = [
   "invoiceNumber",
   "type",
@@ -44,14 +40,6 @@ const COLUMNS: TransactionColumnId[] = [
   "date",
 ];
 
-/**
- * A customer's own invoice history.
- *
- * Filters live in the URL for the same reason they do on the admin list: a
- * filtered view survives a reload and the back button, and the URL being the
- * single source of truth means the query, the chips and the modal's initial
- * values cannot disagree.
- */
 export function MyTransactionsBrowser() {
   const router = useRouter();
   const pathname = usePathname();
@@ -71,7 +59,6 @@ export function MyTransactionsBrowser() {
 
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
 
-  /** `replace`, not `push`: narrowing one view should not fill the history. */
   const commit = (next: CustomerTransactionFilters, nextPage: number) => {
     const params = new URLSearchParams(customerTransactionQuery(next));
     if (nextPage > 1) params.set("page", String(nextPage));
@@ -83,7 +70,6 @@ export function MyTransactionsBrowser() {
   const removeFilter = (key: "range" | "minAmount" | "maxAmount") => {
     const next = { ...filters };
     if (key === "range") {
-      // One filter to a reader, even though it is two params.
       delete next.dateFrom;
       delete next.dateTo;
     } else {
@@ -98,10 +84,6 @@ export function MyTransactionsBrowser() {
     placeholderData: keepPreviousData,
   });
 
-  /**
-   * The two actions the shared table has no business knowing about: a link into
-   * the CUSTOMER's detail route, and the invoice the API already rendered.
-   */
   const extraColumns = React.useMemo<Column<CustomerTransactionRow>[]>(
     () => [
       {
@@ -119,9 +101,6 @@ export function MyTransactionsBrowser() {
               دریافت
             </a>
           ) : (
-            // Null means the render never finished. A customer cannot retry it
-            // -- that endpoint is admin-only -- so this says so plainly rather
-            // than offering a dead button.
             <span className="text-2xs text-fg-muted">آماده نیست</span>
           ),
         align: "center",
@@ -233,7 +212,6 @@ export function MyTransactionsBrowser() {
   );
 }
 
-/** Invalid or absent both mean "no bound", never an Invalid Date in a query. */
 function parseDate(value: string | null): Date | undefined {
   if (!value) return undefined;
   const date = new Date(value);
@@ -243,7 +221,6 @@ function parseDate(value: string | null): Date | undefined {
 function parseAmount(value: string | null): number | undefined {
   if (value === null || value === "") return undefined;
   const amount = toNumber(value);
-  // Negative is not a bound the API accepts; drop it rather than 400.
   return Number.isFinite(amount) && amount >= 0 ? amount : undefined;
 }
 

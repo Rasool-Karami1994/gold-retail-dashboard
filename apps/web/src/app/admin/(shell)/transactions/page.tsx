@@ -3,13 +3,6 @@ import Link from "next/link";
 import { PageHeader, buttonStyles } from "@/components/ui";
 import { TransactionsBrowser } from "./transactions-browser";
 
-/**
- * Every invoice, filterable.
- *
- * The Suspense boundary is not optional: TransactionsBrowser reads the filters
- * with `useSearchParams`, which opts the route into client rendering and makes
- * Next demand a boundary at build time. Same pattern as the login pages.
- */
 export default function TransactionsPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -32,7 +25,6 @@ export default function TransactionsPage() {
   );
 }
 
-/** Holds the table's space so the header doesn't jump when the browser mounts. */
 function TableFallback() {
   return (
     <div className="h-96 animate-pulse rounded-lg border border-border bg-surface" />

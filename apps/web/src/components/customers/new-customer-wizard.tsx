@@ -19,41 +19,10 @@ import { isValidMobile, normalizeMobile } from "@/lib/mobile";
 import { announceOtpSent } from "@/lib/otp-toast";
 import { Stepper } from "./stepper";
 
-/**
- * Staff "add customer" flow, as a component rather than a screen.
- *
- * Two callers: /admin/customers/new renders it in a card, and the new-transaction
- * form opens it in a modal when the mobile it looked up has no customer. It
- * therefore owns the flow and nothing around it -- no card, no page heading, no
- * navigation. What happens after a successful create is the caller's business,
- * which is why `onCreated` exists instead of a router.push in here.
- *
- * Three API calls, deliberately in this order:
- *
- *   1. request-otp (purpose 'register')  -- texts the customer a code
- *   2. verify-otp  (purpose 'register')  -- proves the number answers
- *   3. POST /api/admin/customers         -- creates the record
- *
- * The OTP is not decoration. Without step 2 an admin could type any number into
- * the system, and whoever actually owns that number would later be able to sign
- * in to an account they never asked for -- a customer's mobile IS their login
- * identity here. The API enforces the order: creating without a recent verified
- * 'register' receipt is a 403.
- *
- * Verifying a 'register' code establishes no customer session, so the admin's
- * own cookie survives the round trip.
- */
-
-/** Mirrors OTP_LENGTH in apps/api/.env. */
 const OTP_LENGTH = 5;
 
 const STEPS = ["اطلاعات مشتری", "تأیید شماره"];
 
-/**
- * Names are bounded at 60 to match the model's `maxlength`, so an over-long
- * name is caught before a round trip. The mobile rule is the client-side twin
- * of the API's -- see lib/mobile.ts on why it is duplicated.
- */
 const detailsSchema = z.object({
   firstName: z
     .string()
@@ -74,10 +43,6 @@ const detailsSchema = z.object({
 
 type DetailsValues = z.infer<typeof detailsSchema>;
 
-/**
- * Mapped on HTTP status, never on `error.message`: the API answers in English,
- * and its wording is a server concern that should not surface in a Persian UI.
- */
 const OFFLINE = "اتصال به سرور برقرار نشد. اتصال اینترنت خود را بررسی کنید.";
 const SESSION_LOST = "نشست شما منقضی شده است. دوباره وارد شوید.";
 const SERVER = "خطای سرور. لطفاً بعداً دوباره تلاش کنید.";
@@ -110,9 +75,6 @@ function messageForVerify(error: unknown): string {
   switch (statusOf(error)) {
     case null:
       return OFFLINE;
-    // The API returns 400 both for a wrong code and for an expired one. The two
-    // are not distinguishable by status, so the message covers both rather than
-    // guessing -- and points at the remedy for either.
     case 400:
       return "کد وارد شده نادرست یا منقضی شده است. دوباره تلاش کنید یا کد جدید بگیرید.";
     case 401:
@@ -133,9 +95,6 @@ function messageForCreate(error: unknown): string {
       return "اطلاعات وارد شده معتبر نیست.";
     case 401:
       return SESSION_LOST;
-    // The verification receipt has a 15-minute life. Past it the number has to
-    // be proved again, so this sends the user back to step 1 rather than
-    // offering a retry that would fail identically.
     case 403:
       return "مهلت تأیید شماره به پایان رسیده است. لطفاً دوباره کد بگیرید.";
     case 409:
@@ -146,11 +105,8 @@ function messageForCreate(error: unknown): string {
 }
 
 export interface NewCustomerWizardProps {
-  /** Prefills the mobile, for when the caller already knows what was typed. */
   initialMobile?: string;
-  /** The created customer. The caller decides where to go from here. */
   onCreated: (customer: CreatedCustomer) => void;
-  /** Rendered beside the first step's submit -- a cancel link, a close button. */
   secondaryAction?: React.ReactNode;
 }
 
@@ -162,20 +118,10 @@ export function NewCustomerWizard({
   const queryClient = useQueryClient();
 
   const [step, setStep] = React.useState(0);
-  /** Filled from step 1, with the mobile as the API normalised it. */
   const [details, setDetails] = React.useState<DetailsValues | null>(null);
   const [code, setCode] = React.useState("");
   const [secondsLeft, setSecondsLeft] = React.useState(0);
 
-  /**
-   * THE REASON THIS IS A REF AND NOT DERIVED STATE.
-   *
-   * A verified code is spent: verify-otp looks for an *unverified* record, so
-   * calling it a second time with the same code answers 400 "expired". If the
-   * create call then fails for its own reasons -- a dropped connection, a
-   * server blip -- retrying must NOT re-verify. This flag is what makes the
-   * retry resume at step 3 instead of throwing away a perfectly good receipt.
-   */
   const verified = React.useRef(false);
   const [failedPhase, setFailedPhase] = React.useState<"verify" | "create" | null>(null);
 
@@ -191,7 +137,6 @@ export function NewCustomerWizard({
     defaultValues: { firstName: "", lastName: "", mobile: initialMobile },
   });
 
-  /** Ticks the resend countdown down to zero. */
   React.useEffect(() => {
     if (secondsLeft <= 0) return;
     const timer = setTimeout(() => setSecondsLeft((value) => value - 1), 1000);
@@ -201,21 +146,13 @@ export function NewCustomerWizard({
   const requestCode = useMutation({
     mutationFn: (values: DetailsValues) => requestRegisterOtp(values.mobile),
     onSuccess: (result, values) => {
-      // Store the API's normalised form, not what was typed: every later call
-      // has to name the same number the OTP record was filed under.
       setDetails({ ...values, mobile: result.mobile });
       setCode("");
       verified.current = false;
       setFailedPhase(null);
-      // Also clears any complaint about the PREVIOUS code. This runs on resend
-      // as well as on the first request, and "the code is wrong" left standing
-      // over a freshly sent one reads as a failure that just happened.
       confirm.reset();
       setSecondsLeft(result.expiresInSeconds);
       setStep(1);
-      // Shows the code itself when the API is mocking SMS. This wizard is used
-      // both on /admin/customers/new and inline in the new-transaction form, so
-      // both get it from here.
       announceOtpSent(result.devOtpCode);
     },
   });
@@ -232,18 +169,14 @@ export function NewCustomerWizard({
       return createCustomer(details);
     },
     onError: () => {
-      // Which half failed is not in the error, but the flag above says whether
-      // verification had already gone through when it was thrown.
       setFailedPhase(verified.current ? "create" : "verify");
     },
     onSuccess: (customer) => {
-      // Every cached page and search of the list is now stale by one row.
       queryClient.invalidateQueries({ queryKey: customerKeys.all });
       onCreated(customer);
     },
   });
 
-  /** Sends a fresh code for the same number, e.g. after the first one expired. */
   const resend = () => {
     const values = details ?? getValues();
     requestCode.mutate({ ...values, mobile: normalizeMobile(values.mobile) });
@@ -258,11 +191,6 @@ export function NewCustomerWizard({
     confirm.reset();
   };
 
-  /**
-   * Stays busy through `isSuccess`: whatever the caller does next has not
-   * painted yet, and a button that springs back to clickable invites a second
-   * submit against a spent code.
-   */
   const confirming = confirm.isPending || confirm.isSuccess;
 
   const requestError = requestCode.error ? messageForRequest(requestCode.error) : null;
@@ -272,7 +200,6 @@ export function NewCustomerWizard({
       : messageForVerify(confirm.error)
     : null;
 
-  /** A spent registration window cannot be retried; only a new code fixes it. */
   const windowExpired =
     failedPhase === "create" && statusOf(confirm.error) === 403;
 
@@ -353,14 +280,10 @@ export function NewCustomerWizard({
             value={code}
             onChange={(next) => {
               setCode(next);
-              // Clear the previous complaint as soon as the code changes; it
-              // referred to what was there before.
               if (confirm.error) confirm.reset();
             }}
             length={OTP_LENGTH}
             autoFocus
-            // Once the number is proved, the code is history -- a create
-            // failure must not paint the OTP boxes red.
             invalid={Boolean(confirm.error) && failedPhase === "verify"}
             disabled={confirming || verified.current}
           />
@@ -385,9 +308,6 @@ export function NewCustomerWizard({
           {confirmError && <FormError>{confirmError}</FormError>}
           {requestError && <FormError>{requestError}</FormError>}
 
-          {/* A verified number with a failed create is a different situation
-              from a wrong code: the customer does not need to read anything
-              back, the write just has to be tried again. */}
           {failedPhase === "create" && !windowExpired && (
             <p className="text-xs text-fg-muted">
               شماره تأیید شد؛ فقط ثبت اطلاعات ناتمام ماند.

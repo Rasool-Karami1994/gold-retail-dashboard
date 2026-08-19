@@ -1,14 +1,5 @@
 import { create } from "zustand";
 
-/**
- * Notification queue.
- *
- * Backed by Zustand rather than React context so that `toast.success(...)` can
- * be called from anywhere -- a TanStack Query `onError`, an event handler, a
- * plain module function -- without needing to be inside a component tree or to
- * thread a hook through. <Toaster /> just subscribes and renders.
- */
-
 export type ToastVariant = "success" | "error" | "warning" | "info";
 
 export interface Toast {
@@ -16,7 +7,6 @@ export interface Toast {
   variant: ToastVariant;
   title: string;
   description?: string;
-  /** Milliseconds before auto-dismiss. 0 keeps it up until dismissed. */
   duration: number;
   action?: { label: string; onClick: () => void };
 }
@@ -25,7 +15,6 @@ export interface ToastOptions {
   description?: string;
   duration?: number;
   action?: Toast["action"];
-  /** Reuse an id to replace an existing toast instead of stacking a duplicate. */
   id?: string;
 }
 
@@ -36,7 +25,6 @@ interface ToastState {
   dismissAll: () => void;
 }
 
-/** Errors stay up longer -- they usually carry something worth reading. */
 const DEFAULT_DURATION: Record<ToastVariant, number> = {
   success: 4000,
   info: 4000,
@@ -44,7 +32,6 @@ const DEFAULT_DURATION: Record<ToastVariant, number> = {
   error: 8000,
 };
 
-/** Oldest are dropped past this, so a burst can't bury the screen. */
 const MAX_VISIBLE = 4;
 
 let counter = 0;
@@ -80,12 +67,6 @@ export const useToastStore = create<ToastState>((set) => ({
   dismissAll: () => set({ toasts: [] }),
 }));
 
-/**
- * Imperative API. Usable outside React:
- *
- *   toast.success("سفارش ثبت شد");
- *   toast.error("خطا در ارتباط با سرور", { description: err.message });
- */
 function make(variant: ToastVariant) {
   return (title: string, options: ToastOptions = {}) =>
     useToastStore.getState().push({ variant, title, ...options });

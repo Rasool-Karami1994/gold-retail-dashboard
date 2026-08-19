@@ -4,12 +4,6 @@ import { asyncHandler } from "../middleware/async-handler.js";
 import { validate } from "../middleware/validate.js";
 import { requireRole } from "../middleware/auth.js";
 
-/**
- * Mounted at /api/admin/stats. Admin-only, guarded at the mount point.
- *
- * All read-only. The two debt-credit routes take no range: they are running
- * totals as of now, not flow through a period -- see stats.service.ts.
- */
 export const adminStatsRouter: Router = Router();
 
 adminStatsRouter.use(requireRole("admin"));

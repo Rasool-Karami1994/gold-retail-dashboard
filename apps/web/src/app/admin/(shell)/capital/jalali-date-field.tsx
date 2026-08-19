@@ -6,25 +6,6 @@ import type DateObject from "react-date-object";
 import { cn } from "@/lib/cn";
 import { CALENDAR, LOCALE, formatJalali } from "@/lib/jalali";
 
-/**
- * A single Jalali date, picked from a calendar popover.
- *
- * `DateRangeFilter` covers two endpoints and a set of presets, which is a
- * different control; this is the plain one-date field the opening balance
- * needs. It follows the same two rules that control learned the hard way:
- *
- *   - the popover renders INLINE, never through a portal. This form opens
- *     inside a <dialog> from the edit button, and a dialog opened with
- *     showModal() lives in the browser's top layer -- a popover portaled to
- *     document.body lands behind it and no z-index can rescue it.
- *   - it flips above the trigger when there is no room below, measured rather
- *     than assumed, because in a modal the field can sit near the bottom of
- *     the viewport and the top layer does not scroll with the page.
- *
- * Kept beside the capital screen because it is its only caller. Promote it to
- * components/ui when something else needs a single date.
- */
-
 export interface JalaliDateFieldProps {
   label: string;
   value: Date | null;
@@ -32,7 +13,6 @@ export interface JalaliDateFieldProps {
   hint?: React.ReactNode;
   error?: string;
   disabled?: boolean;
-  /** Nothing later than this can be chosen. */
   maxDate?: Date;
 }
 
@@ -62,31 +42,12 @@ export function JalaliDateField({
       const rect = trigger.getBoundingClientRect();
       const needed = popover.offsetHeight + 8;
       const spaceBelow = window.innerHeight - rect.bottom;
-      // Only flip when going up is actually better: on a short viewport neither
-      // side fits, and dropping down at least keeps the first week visible.
       setDropUp(spaceBelow < needed && rect.top > spaceBelow);
     };
 
     place();
 
-    /**
-     * Measured a second time, on a timer, and this is the measurement that
-     * actually decides it.
-     *
-     * The popover is 18px of padding when the layout effect above runs: the
-     * calendar builds its month in a PASSIVE effect, which React has not got to
-     * yet, so the first measurement always concludes there is room below. A
-     * timeout lands after those effects, with the real height.
-     *
-     * A `requestAnimationFrame` would be the obvious way to wait, and it is the
-     * wrong one -- it only runs when the browser is producing frames, so in a
-     * background tab the popover would open unplaced and stay that way. Timers
-     * run regardless.
-     */
     const timer = window.setTimeout(place, 0);
-    // Still watched for later size changes: a month spanning six weeks is a row
-    // taller than one spanning five, and the popover has to re-place itself
-    // when the user pages through.
     const observer = new ResizeObserver(place);
     observer.observe(popover);
     window.addEventListener("resize", place);
@@ -106,8 +67,6 @@ export function JalaliDateField({
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        // Stops the key reaching the surrounding <dialog>, which would
-        // otherwise close the whole form on the first Escape.
         event.stopPropagation();
         setOpen(false);
       }
@@ -124,8 +83,6 @@ export function JalaliDateField({
   const handleChange = (selection: DateObject | DateObject[] | null) => {
     if (!selection || Array.isArray(selection)) return;
     const picked = selection.toDate();
-    // Local midnight: the API widens a bare date to the whole day, and the
-    // opening position is a day, not an instant.
     picked.setHours(0, 0, 0, 0);
     onChange(picked);
     setOpen(false);

@@ -19,7 +19,6 @@ import { TransactionFiltersModal } from "./filters-modal";
 
 const PAGE_SIZE = 20;
 
-/** In the order the screen reads: what, who, then the deal, then the state. */
 const COLUMNS: TransactionColumnId[] = [
   "invoiceNumber",
   "customerName",
@@ -34,17 +33,6 @@ const COLUMNS: TransactionColumnId[] = [
   "details",
 ];
 
-/**
- * The invoice browser.
- *
- * THE FILTERS LIVE IN THE URL, not in component state. A filtered list is the
- * thing staff send each other -- "the open invoices for this customer" should
- * survive a reload, a back button and a paste into chat. Component state would
- * make all three lose the filter silently.
- *
- * That also makes the URL the single source of truth: the query, the chips and
- * the modal's initial values all read from it, so they cannot disagree.
- */
 export function TransactionsBrowser() {
   const router = useRouter();
   const pathname = usePathname();
@@ -65,14 +53,8 @@ export function TransactionsBrowser() {
 
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
 
-  /**
-   * Writes the URL. `replace`, not `push`: paging and re-filtering are the same
-   * view being narrowed, and pushing would bury the page the user arrived from
-   * under a dozen history entries.
-   */
   const commit = (next: TransactionFilters, nextPage: number) => {
     const params = new URLSearchParams(transactionQuery(next));
-    // Page 1 is the default; leaving it out keeps the shared URL clean.
     if (nextPage > 1) params.set("page", String(nextPage));
 
     const query = params.toString();
@@ -80,14 +62,12 @@ export function TransactionsBrowser() {
   };
 
   const applyFilters = (next: TransactionFilters) => {
-    // Page 7 of the old filter is meaningless under a new one.
     commit(next, 1);
   };
 
   const removeFilter = (key: keyof TransactionFilters) => {
     const next = { ...filters };
     if (key === "dateFrom" || key === "dateTo") {
-      // The range is one filter to a reader, even though it is two params.
       delete next.dateFrom;
       delete next.dateTo;
     } else {
@@ -189,7 +169,6 @@ export function TransactionsBrowser() {
   );
 }
 
-/** Invalid or absent both mean "no bound", never an Invalid Date in a query. */
 function parseDate(value: string | null): Date | undefined {
   if (!value) return undefined;
   const date = new Date(value);
@@ -202,7 +181,6 @@ interface FilterChip {
   value: string;
 }
 
-/** The applied filters, as something a person can read and dismiss. */
 function describeFilters(filters: TransactionFilters): FilterChip[] {
   const chips: FilterChip[] = [];
 
@@ -223,7 +201,6 @@ function describeFilters(filters: TransactionFilters): FilterChip[] {
       value: filters.invoiceNumber,
     });
   }
-  // One chip for the pair: a range with only one end is still a range.
   if (filters.dateFrom || filters.dateTo) {
     chips.push({
       key: "dateFrom",

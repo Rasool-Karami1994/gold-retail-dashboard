@@ -1,9 +1,5 @@
 import { MyTransactionDetail } from "./transaction-detail";
 
-/**
- * One of the customer's own invoices. `params` is a promise in Next 15;
- * awaiting it here keeps the client component taking a plain string.
- */
 export default async function MyTransactionDetailPage({
   params,
 }: {

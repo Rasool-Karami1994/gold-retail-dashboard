@@ -3,13 +3,6 @@ import { buttonStyles, PageHeader } from "@/components/ui";
 import { CustomersTable } from "./customers-table";
 import { CUSTOMERS_NEW } from "./routes";
 
-/**
- * Customer directory.
- *
- * A server component around one client section, matching /admin/overview: the
- * heading and the "add" affordance are static, and only the table needs the
- * search state and the query.
- */
 export default function CustomersPage() {
   return (
     <div className="flex flex-col gap-6 p-6">

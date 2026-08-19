@@ -35,7 +35,6 @@ export { CounterModel, nextSequence } from "./counter.model.js";
 export { CourseModel } from "./course.model.js";
 export type { Course, CourseDocument } from "./course.model.js";
 
-/** Capital-in-grams: the shop's opening position and its daily gold price. */
 export { ShopSettingsModel, SHOP_SETTINGS_ID } from "./shop-settings.model.js";
 export type {
   ShopSettings,

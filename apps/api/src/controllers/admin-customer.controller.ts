@@ -28,11 +28,6 @@ export const createCustomerSchema = z.object({
     }),
 });
 
-/**
- * Names only. `.strict()` makes an attempt to send `mobile` a loud 400 rather
- * than a silent no-op -- a client that thinks it renamed a number should not
- * get a 200 back.
- */
 export const updateCustomerSchema = z
   .object({
     firstName: nameField.optional(),
@@ -43,13 +38,11 @@ export const updateCustomerSchema = z
     message: "Provide at least one of firstName or lastName",
   });
 
-/** GET /api/admin/customers */
 export async function list(_req: Request, res: Response) {
   const query = validated(res, listQuerySchema);
   res.json(await customerService.listCustomers(query));
 }
 
-/** GET /api/admin/customers/:id */
 export async function getOne(req: Request, res: Response) {
   const query = validated(res, detailQuerySchema);
   res.json(
@@ -57,14 +50,12 @@ export async function getOne(req: Request, res: Response) {
   );
 }
 
-/** POST /api/admin/customers */
 export async function create(_req: Request, res: Response) {
   const body = validated(res, createCustomerSchema);
   const customer = await customerService.createCustomer(body);
   res.status(201).json(customer);
 }
 
-/** PATCH /api/admin/customers/:id */
 export async function update(req: Request, res: Response) {
   const body = validated(res, updateCustomerSchema);
   res.json(

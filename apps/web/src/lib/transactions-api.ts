@@ -1,15 +1,6 @@
 import { apiFetch, type Paginated } from "./api";
 import { toApiDate } from "./jalali";
 
-/**
- * The transaction list, for admin screens.
- *
- * Lives here rather than in stats-api because it is not a statistic: the
- * overview's range modal and /admin/transactions read the same endpoint, one
- * with a date range and the other with the full filter set. Keeping two
- * fetchers for one endpoint is how their parameter names drift apart.
- */
-
 export interface TransactionCustomer {
   id: string;
   firstName: string;
@@ -20,15 +11,12 @@ export interface TransactionCustomer {
 export interface TransactionRow {
   id: string;
   invoiceNumber: string;
-  /** Populated by the API. Null only if the customer was deleted. */
   customer: TransactionCustomer | null;
   type: "sell" | "buy";
   goldType: "melted" | "new" | "second-hand";
   goldWeightGrams: number;
   dailyGoldPricePerGram: number;
-  /** 0 on anything recorded before margins existed. */
   profitPercentage: number;
-  /** The margin in Toman, as it was when the invoice was written. */
   profitAmount: number;
   totalAmount: number;
   paidAmount: number;
@@ -37,18 +25,9 @@ export interface TransactionRow {
   createdAt: string;
 }
 
-/**
- * Everything GET /api/admin/transactions filters on. All optional -- an absent
- * field is not sent, which is what the API means by "no filter".
- *
- * NOTE THE PARAM NAMES: this endpoint takes `dateFrom`/`dateTo` while
- * /stats/* takes `from`/`to`. That inconsistency is in the API and is contained
- * in these two modules so no component has to remember which is which.
- */
 export interface TransactionFilters {
   customerName?: string;
   customerMobile?: string;
-  /** Matched as a substring, so the trailing sequence alone works. */
   invoiceNumber?: string;
   dateFrom?: Date;
   dateTo?: Date;
@@ -56,13 +35,6 @@ export interface TransactionFilters {
   type?: "sell" | "buy";
 }
 
-/**
- * Filters as flat string params.
- *
- * The request and the query key are both built from this, so a cached page can
- * never disagree with the filters that fetched it -- and an empty string is
- * dropped here rather than sent as `?customerName=`, which the API rejects.
- */
 export function transactionQuery(
   filters: TransactionFilters,
 ): Record<string, string> {
@@ -94,14 +66,11 @@ export function fetchTransactions(
   );
 }
 
-/** A recorded instalment, as it comes back on a transaction. */
 export interface TransactionPayment {
   method: "cash" | "bank";
   amount: number;
   bankType?: "paya" | "card-to-card" | "bridge" | "satna";
-  /** card-to-card only. */
   destinationCard?: string;
-  /** Every other bank route -- they settle to an account, not a card. */
   destinationIban?: string;
   paidAt: string;
 }
@@ -109,23 +78,9 @@ export interface TransactionPayment {
 export interface TransactionDetail extends TransactionRow {
   payments: TransactionPayment[];
   balanceDirection: "customer-owes-shop" | "shop-owes-customer" | "none";
-  /**
-   * Null until the PDF has rendered. The create endpoint starts that render in
-   * the background and answers immediately, so a freshly created transaction
-   * always has null here and gains a URL on a later read.
-   */
   invoicePdfUrl: string | null;
   createdBy?: { id: string; username: string; role: string } | null;
   updatedAt: string;
-  /**
-   * The SMS the customer would have received, present only when the API is
-   * mocking SMS and the PDF has rendered.
-   *
-   * It arrives here rather than on create because the render is backgrounded --
-   * at create time there is no URL yet, so there is no link to hand over. The
-   * success screen already polls this endpoint for `invoicePdfUrl`, so the two
-   * land together.
-   */
   devInvoiceMessage?: string;
 }
 
@@ -138,22 +93,12 @@ export function fetchTransaction(id: string) {
 export interface TransactionPaymentInput {
   method: "cash" | "bank";
   amount: number;
-  /** Required by the API for bank payments, rejected on cash ones. */
   bankType?: "paya" | "card-to-card" | "bridge" | "satna";
-  /** card-to-card only; the API rejects it on the account-settled routes. */
   destinationCard?: string;
-  /** Every other bank route; the API rejects it on card-to-card. */
   destinationIban?: string;
 }
 
-/**
- * `totalAmount`, `invoiceNumber` and `status` are absent on purpose -- all three
- * are derived by the model's pre-validate hook, and the API rejects a body that
- * tries to set them. The total shown on the form is a preview of that
- * calculation, not an input.
- */
 export interface CreateTransactionInput {
-  /** Customer id, not a mobile: the form resolves the number first. */
   customer: string;
   type: "sell" | "buy";
   goldType: "melted" | "new" | "second-hand";
@@ -170,18 +115,6 @@ export function createTransaction(input: CreateTransactionInput) {
   });
 }
 
-/**
- * Records one instalment against an existing transaction.
- *
- * Answers with the whole updated transaction, so the caller can repaint the
- * figures -- and read the new `status` -- without a second request.
- *
- * Two failures are worth handling by status rather than as a generic error:
- * 409 means the invoice was already settled, and 400 means the amount exceeds
- * the balance, with `remainingAmount` on the error body saying what would have
- * fit. Both can happen to a form that was correct when it was opened, because
- * somebody else can pay in the meantime.
- */
 export function addPayment(id: string, input: TransactionPaymentInput) {
   return apiFetch<TransactionDetail>(
     `/api/admin/transactions/${encodeURIComponent(id)}/payments`,
@@ -189,14 +122,6 @@ export function addPayment(id: string, input: TransactionPaymentInput) {
   );
 }
 
-/**
- * Renders the invoice PDF synchronously and returns its URL.
- *
- * The create endpoint already starts this in the background, so this is the
- * retry for when that render failed and `invoicePdfUrl` never appeared.
- * `notify` is left off: re-rendering should not text the customer a second
- * link.
- */
 export function regenerateInvoice(id: string) {
   return apiFetch<{ filename: string; url: string }>(
     `/api/admin/transactions/${encodeURIComponent(id)}/invoice`,
@@ -204,28 +129,17 @@ export function regenerateInvoice(id: string) {
   );
 }
 
-/**
- * A different endpoint, not a filtered version of the admin one.
- *
- * Scope comes from the session cookie on the server -- there is no customer id
- * in the URL for anyone to substitute, and these filters narrow within that
- * scope rather than choosing it. The row shape is the same, so the admin types
- * above are reused rather than copied.
- */
 export interface CustomerTransactionRow extends TransactionRow {
-  /** Null until the invoice PDF has rendered. */
   invoicePdfUrl: string | null;
 }
 
 export interface CustomerTransactionFilters {
   dateFrom?: Date;
   dateTo?: Date;
-  /** Bounds on `totalAmount`, the gross value of the deal. */
   minAmount?: number;
   maxAmount?: number;
 }
 
-/** Request and query key are both built from this, so they cannot disagree. */
 export function customerTransactionQuery(
   filters: CustomerTransactionFilters,
 ): Record<string, string> {
@@ -233,7 +147,6 @@ export function customerTransactionQuery(
 
   if (filters.dateFrom) query.dateFrom = toApiDate(filters.dateFrom);
   if (filters.dateTo) query.dateTo = toApiDate(filters.dateTo);
-  // Explicit undefined check: 0 is a legitimate bound and must survive.
   if (filters.minAmount !== undefined) query.minAmount = String(filters.minAmount);
   if (filters.maxAmount !== undefined) query.maxAmount = String(filters.maxAmount);
 
@@ -255,12 +168,6 @@ export function fetchMyTransactions(
   );
 }
 
-/**
- * One of the customer's own invoices.
- *
- * 404s for someone else's rather than 403 -- a 403 would confirm the id exists,
- * which is an enumeration oracle over invoice numbers. See the service.
- */
 export function fetchMyTransaction(id: string) {
   return apiFetch<TransactionDetail>(
     `/api/customer/transactions/${encodeURIComponent(id)}`,
@@ -274,11 +181,6 @@ export const transactionKeys = {
   detail: (id: string) => ["transactions", "detail", id] as const,
 };
 
-/**
- * Kept separate from `transactionKeys`. The two endpoints answer differently
- * for the same id -- one is scoped to a session -- so sharing a cache entry
- * would let an admin's copy of a transaction satisfy a customer's read.
- */
 export const myTransactionKeys = {
   all: ["my-transactions"] as const,
   list: (filters: CustomerTransactionFilters, page: number, limit: number) =>

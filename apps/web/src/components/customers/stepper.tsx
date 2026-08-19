@@ -1,20 +1,11 @@
 import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/format";
 
-/**
- * Numbered progress indicator for a short wizard, following the stepper in
- * /design-reference/stepper-otpFiled.jpg.
- *
- * It is presentational only -- steps are not clickable, because step 2 cannot
- * be reached without the details from step 1 and going back is what the form's
- * own "change number" button is for.
- */
 export function Stepper({
   steps,
   current,
 }: {
   steps: string[];
-  /** Zero-based index of the step in progress. */
   current: number;
 }) {
   return (
@@ -29,11 +20,6 @@ export function Stepper({
             className={cn("flex items-center", index > 0 && "flex-1")}
             aria-current={active ? "step" : undefined}
           >
-            {/* The connector belongs to the step it leads INTO, so the first
-                step has none. Source order is reading order -- under `dir=rtl`
-                this puts the line to the RIGHT of its circle, i.e. between it
-                and the step before. No reversal needed, and reversing here
-                would push the line past the circle to the far edge. */}
             {index > 0 && (
               <span
                 aria-hidden="true"

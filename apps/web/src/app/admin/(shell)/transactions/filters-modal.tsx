@@ -12,19 +12,6 @@ import {
 } from "@/components/ui";
 import type { TransactionFilters } from "@/lib/transactions-api";
 
-/**
- * The filter form behind the toolbar's "فیلتر" button.
- *
- * It edits a DRAFT and only reports it on submit. Filtering as you type would
- * fire a request per keystroke against an endpoint that resolves customer names
- * to ids before it can even start querying transactions -- and would make
- * "clear the mobile, type a different one" run a search for every intermediate
- * state.
- *
- * The draft is re-seeded from `value` each time the dialog opens, so abandoning
- * an edit with Esc leaves the applied filters untouched rather than carrying a
- * half-typed field into the next visit.
- */
 export function TransactionFiltersModal({
   open,
   onClose,
@@ -39,7 +26,6 @@ export function TransactionFiltersModal({
   const [customerName, setCustomerName] = React.useState("");
   const [customerMobile, setCustomerMobile] = React.useState("");
   const [invoiceNumber, setInvoiceNumber] = React.useState("");
-  /** null means "every date", which is the default and NOT what a preset says. */
   const [range, setRange] = React.useState<DateRange | null>(null);
 
   React.useEffect(() => {
@@ -59,8 +45,6 @@ export function TransactionFiltersModal({
     event.preventDefault();
 
     onApply({
-      // Trimmed, and empty means absent: `transactionQuery` drops falsy values,
-      // so a cleared field removes its parameter instead of sending "".
       customerName: customerName.trim() || undefined,
       customerMobile: customerMobile.trim() || undefined,
       invoiceNumber: invoiceNumber.trim() || undefined,
@@ -85,8 +69,6 @@ export function TransactionFiltersModal({
       title="فیلتر معاملات"
       description="فیلترهای خالی اعمال نمی‌شوند."
     >
-      {/* The form owns the footer buttons rather than Modal's `footer` slot, so
-          the submit button stays inside the form and Enter still submits. */}
       <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
@@ -111,8 +93,6 @@ export function TransactionFiltersModal({
           label="شماره فاکتور"
           value={invoiceNumber}
           onChange={(event) => setInvoiceNumber(event.target.value)}
-          // The API matches this as a substring, which is the whole point --
-          // staff read the trailing sequence off a printed invoice.
           hint="بخشی از شماره هم کافی است، مثلاً ۰۰۰۷"
           placeholder="INV-…"
           dir="ltr"
@@ -124,11 +104,6 @@ export function TransactionFiltersModal({
           </legend>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/*
-              DateRangeFilter always holds a range -- it has no "off". The
-              default here is no date filter at all, so the toggle owns that
-              state and the picker only appears once a range is wanted.
-            */}
             <label className="flex items-center gap-2 text-sm text-fg-secondary">
               <input
                 type="checkbox"

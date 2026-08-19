@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { env } from "./env.js";
+
 mongoose.set("bufferCommands", false);
 mongoose.set("strictQuery", true);
 
