@@ -1,18 +1,6 @@
 import { jwtVerify } from "jose";
 import { COOKIE_NAMES, type Role } from "@/config/routes";
 
-/**
- * Reads the session cookies the API issues.
- *
- * Verification happens here rather than by calling the API's /me endpoint,
- * because middleware runs on every navigation and a network round trip per
- * request is a latency cost the guard doesn't need to pay. The tradeoff is
- * that this app must hold the same JWT_SECRET as the API.
- *
- * `jose` is used instead of `jsonwebtoken` because Next middleware runs on the
- * Edge runtime, which has Web Crypto but not Node's `crypto` module.
- */
-
 export interface Session {
   id: string;
   role: Role;
@@ -39,14 +27,6 @@ function getSecret(): Uint8Array | null {
   return cachedSecret;
 }
 
-/**
- * Verifies one role's cookie.
- *
- * Fails closed: a missing secret, a bad signature, an expired token or a
- * payload whose role disagrees with the cookie it arrived in all return null.
- * The caller cannot tell those apart, and shouldn't -- they all mean
- * "not signed in as this role".
- */
 export async function readSession(
   token: string | undefined,
   role: Role,

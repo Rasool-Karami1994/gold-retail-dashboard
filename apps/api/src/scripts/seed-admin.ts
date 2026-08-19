@@ -1,12 +1,3 @@
-/**
- * Creates the first admin account from environment variables.
- *
- *   pnpm --filter api seed:admin
- *
- * Idempotent: if the username already exists it reports and exits without
- * touching the record, so re-running during setup can't silently reset a
- * password. Pass --force to overwrite an existing admin's password.
- */
 import { connectDatabase, disconnectDatabase } from "../config/database.js";
 import { env } from "../config/env.js";
 import { AdminModel } from "../models/admin.model.js";

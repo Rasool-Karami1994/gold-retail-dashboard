@@ -11,15 +11,6 @@ import {
   type TransactionType,
 } from "../models/transaction.model.js";
 
-/**
- * The printed invoice, as a single self-contained HTML string.
- *
- * Everything is inlined -- fonts as base64, all CSS in a <style> block -- so
- * the renderer never makes a network request. A headless browser that has to
- * fetch a stylesheet may screenshot the page before it arrives, which shows up
- * as an invoice that is correct nine times out of ten.
- */
-
 const TYPE_LABELS: Record<TransactionType, string> = {
   sell: "فروش به مشتری",
   buy: "خرید از مشتری",
@@ -43,14 +34,6 @@ const BANK_TYPE_LABELS: Record<BankType, string> = {
   satna: "ساتنا",
 };
 
-/**
- * Escapes text bound for the template.
- *
- * Customer names are free text that a staff member typed. Without this, a name
- * containing `<` corrupts the layout, and the document is rendered by a real
- * browser -- so a crafted name would be script execution inside the renderer,
- * not just a broken invoice.
- */
 function escapeHtml(value: unknown): string {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -60,10 +43,6 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
-/**
- * Placeholder shop identity. Swap for real values, or lift into config once
- * there is a settings collection to hold them.
- */
 export const SHOP_INFO = {
   name: "گالری طلای روزبه رضاوندی",
   branch: "مرکز خرید و فروش طلا و ارز",
@@ -93,7 +72,6 @@ export interface InvoiceTemplateData {
     destinationIban?: string | null;
     paidAt: Date;
   }>;
-  /** `@font-face` block with the fonts already base64-inlined. */
   fontFaces: string;
 }
 
@@ -117,15 +95,6 @@ export function renderInvoiceHtml(data: InvoiceTemplateData): string {
 
   const settled = remainingAmount === 0;
 
-  /**
-   * The margin, and which way it moved.
-   *
-   * Printed from the STORED figures, never recomputed here: an invoice already
-   * in a customer's hands has to keep saying what it said, whatever the rule
-   * becomes later. Omitted entirely at 0% -- a row reading "+ ۰" on every
-   * invoice that never had a margin is noise, and every record written before
-   * the field existed is one of those.
-   */
   const baseAmount = type === "buy" ? totalAmount + profitAmount : totalAmount - profitAmount;
 
   const profitRow =
@@ -137,8 +106,6 @@ export function renderInvoiceHtml(data: InvoiceTemplateData): string {
         )}</td></tr>`
       : "";
 
-  // Who the outstanding balance belongs to depends on the direction of the
-  // deal -- see the header comment in transaction.model.ts.
   const remainingLabel = settled
     ? "تسویه شده"
     : type === "sell"
@@ -152,15 +119,6 @@ export function renderInvoiceHtml(data: InvoiceTemplateData): string {
             payment.method === "bank"
               ? [
                   payment.bankType ? BANK_TYPE_LABELS[payment.bankType] : null,
-                  // Whichever destination this route records. Only the last
-                  // four characters are printed -- the invoice is readable by
-                  // anyone holding the link.
-                  //
-                  // The masked run is bidi-isolated. Without it the digits are
-                  // a left-to-right island inside right-to-left text, so
-                  // "****7890" reorders on screen to "7890****", which reads as
-                  // though the FIRST four were the visible ones. Same
-                  // characters, opposite meaning.
                   payment.destinationCard
                     ? `کارت <span class="mask">****${escapeHtml(
                         payment.destinationCard.slice(-4),
@@ -254,7 +212,6 @@ th {
 td.amount, th.amount { text-align: left; font-variant-numeric: tabular-nums; }
 td.num { width: 10mm; color: #5c6270; }
 td.ltr { direction: ltr; text-align: right; font-size: 9pt; color: #5c6270; }
-/* Keeps a masked card number in its written order inside RTL text. */
 .mask { direction: ltr; unicode-bidi: isolate; }
 td.empty { text-align: center; color: #8b91a0; padding: 5mm; }
 

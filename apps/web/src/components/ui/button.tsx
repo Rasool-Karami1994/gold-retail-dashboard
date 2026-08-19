@@ -11,11 +11,8 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  /** Renders a spinner and blocks interaction. */
   loading?: boolean;
-  /** Sits at the inline-start edge (right, in RTL). */
   startIcon?: React.ReactNode;
-  /** Sits at the inline-end edge (left, in RTL). */
   endIcon?: React.ReactNode;
   fullWidth?: boolean;
 }

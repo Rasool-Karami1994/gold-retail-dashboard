@@ -16,16 +16,6 @@ import {
 } from "@/lib/auth-api";
 import { useAuthStore } from "@/stores/auth.store";
 
-/**
- * The customer's own record, editable.
- *
- * Only the names. The mobile is shown but locked: it is the login identity, and
- * the API's schema is `.strict()` about it -- changing it would hand the account
- * and its history to a different phone. It is rendered `readOnly` rather than
- * `disabled` so the number can still be selected and copied.
- */
-
-/** Bounded at 60 to match the model's `maxlength`, so an over-long name is caught here. */
 const profileSchema = z.object({
   firstName: z
     .string()
@@ -41,10 +31,6 @@ const profileSchema = z.object({
 
 type ProfileValues = z.infer<typeof profileSchema>;
 
-/**
- * Mapped on HTTP status, never on `error.message`: the API answers in English,
- * and its wording is a server concern that should not surface in a Persian UI.
- */
 function messageFor(error: unknown): string {
   const status = error instanceof ApiError ? error.status : null;
 
@@ -85,8 +71,6 @@ export function ProfileView() {
 
   if (isPending || !data) return <FormSkeleton />;
 
-  // Remounted per record so the form's defaults come from real data rather than
-  // from empty strings that a later reset has to paper over.
   return <ProfileForm key={data.id} customer={data} />;
 }
 
@@ -112,15 +96,9 @@ function ProfileForm({ customer }: { customer: CustomerMe }) {
   const save = useMutation({
     mutationFn: updateCustomerMe,
     onSuccess: (updated) => {
-      // Both, deliberately. The store is what the sidebar renders, so writing
-      // it is what makes the new name appear there without a refetch; seeding
-      // the query cache stops the next read of /me from serving the old record
-      // and reverting what the user just saw.
       setUser(toCustomerAuthUser(updated));
       queryClient.setQueryData(customerMeKey, updated);
 
-      // Re-baseline the form so it is no longer "dirty" against values that are
-      // now the saved ones.
       reset({ firstName: updated.firstName, lastName: updated.lastName });
 
       toast.success("اطلاعات شما ذخیره شد");
@@ -173,8 +151,6 @@ function ProfileForm({ customer }: { customer: CustomerMe }) {
             <Button
               type="submit"
               loading={save.isPending}
-              // Nothing to save is not an error, and a live button that writes
-              // the same values back is just a request with no outcome.
               disabled={!isDirty}
             >
               ذخیره‌ی تغییرات
@@ -199,21 +175,6 @@ function ProfileForm({ customer }: { customer: CustomerMe }) {
   );
 }
 
-/**
- * The mobile, shown and locked.
- *
- * Built from raw markup rather than the `Input` component so the FIELD itself
- * can look locked -- a dashed border on a flatter surface, next to the solid
- * bordered boxes above it. Passing a className to `Input` would only reach the
- * inner element, leaving the same chrome around it and a field that reads as
- * editable until someone tries.
- *
- * `readOnly`, not `disabled`: a disabled field cannot be focused, so the number
- * could not be selected or copied -- and it is the value someone is most likely
- * to want to read back to the shop. It is not registered with the form either,
- * so it is never submitted; the API's schema is strict about which keys may
- * change.
- */
 function LockedMobile({ mobile }: { mobile: string }) {
   const id = React.useId();
 

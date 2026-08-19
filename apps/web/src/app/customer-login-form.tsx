@@ -11,27 +11,8 @@ import { formatNumber } from "@/lib/format";
 import { isValidMobile, normalizeMobile } from "@/lib/mobile";
 import { announceOtpSent } from "@/lib/otp-toast";
 
-/**
- * Customer sign-in -- the site's front door.
- *
- * There is no password and no registration form. Customers are created at the
- * counter by staff, and the API only issues a 'register' code to an admin
- * session, so a self-service sign-up here would be a button that always 403s.
- * The copy says so plainly rather than letting someone type a number, wait for
- * an SMS and work it out from a failure.
- *
- * Which is also why an unknown number stops the flow. `request-otp` answers 404
- * for a mobile with no customer; showing the code box anyway would leave someone
- * staring at five empty squares waiting for a message that is never coming.
- */
-
-/** Mirrors OTP_LENGTH in apps/api/.env. */
 const OTP_LENGTH = 5;
 
-/**
- * Mapped on HTTP status, never on `error.message`: the API answers in English,
- * and its wording is a server concern that should not surface in a Persian UI.
- */
 const OFFLINE = "اتصال به سرور برقرار نشد. اتصال اینترنت خود را بررسی کنید.";
 const SERVER = "خطای سرور. لطفاً بعداً دوباره تلاش کنید.";
 
@@ -58,13 +39,9 @@ function messageForVerify(error: unknown): string {
   switch (statusOf(error)) {
     case null:
       return OFFLINE;
-    // 400 covers both a wrong code and an expired one; the two are not
-    // distinguishable by status, so the message covers both and points at the
-    // remedy for either.
     case 400:
       return "کد وارد شده نادرست یا منقضی شده است. دوباره تلاش کنید یا کد جدید بگیرید.";
     case 404:
-      // Only reachable if the account was removed between the two calls.
       return "حساب شما دیگر در دسترس نیست. لطفاً به فروشگاه مراجعه کنید.";
     case 429:
       return "تلاش‌های نادرست بیش از حد مجاز. کد جدیدی درخواست کنید.";
@@ -80,10 +57,8 @@ export default function CustomerLoginForm() {
   const [mobile, setMobile] = React.useState("");
   const [code, setCode] = React.useState("");
   const [secondsLeft, setSecondsLeft] = React.useState(0);
-  /** The normalised number a code was actually sent to. Null before that. */
   const [sentTo, setSentTo] = React.useState<string | null>(null);
 
-  /** Ticks the resend countdown down to zero. */
   React.useEffect(() => {
     if (secondsLeft <= 0) return;
     const timer = setTimeout(() => setSecondsLeft((value) => value - 1), 1000);
@@ -93,14 +68,10 @@ export default function CustomerLoginForm() {
   const request = useMutation({
     mutationFn: (value: string) => requestLoginOtp(value),
     onSuccess: (result) => {
-      // The API's normalised form, not what was typed: verify has to name the
-      // same number the code was filed under.
       setSentTo(result.mobile);
       setCode("");
       setSecondsLeft(result.expiresInSeconds);
       verify.reset();
-      // Shows the code itself when the API is mocking SMS; otherwise just
-      // confirms a message went out.
       announceOtpSent(result.devOtpCode);
     },
   });
@@ -109,25 +80,16 @@ export default function CustomerLoginForm() {
     mutationFn: () => verifyLoginOtp({ mobile: sentTo!, code }),
     onSuccess: () => {
       const returnTo = params.get(RETURN_TO_PARAM);
-      // Only ever follow a same-site path. An absolute URL here would make this
-      // an open redirect: ?next=https://evil.example would land the customer
-      // somewhere else immediately after authenticating.
       const destination =
         returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
           ? returnTo
           : ROUTES.customerHome;
 
       router.replace(destination);
-      // The cookie the API just set is only visible to the middleware on the
-      // next request; refresh so the guard re-runs with it.
       router.refresh();
     },
   });
 
-  /**
-   * An unknown number is not an error to retry -- it is the end of the road for
-   * this flow, and it gets its own panel rather than a red line under the field.
-   */
   const unregistered = statusOf(request.error) === 404;
 
   const submitMobile = (event: React.FormEvent) => {
@@ -144,7 +106,6 @@ export default function CustomerLoginForm() {
     verify.reset();
   };
 
-  /** Busy through isSuccess: the redirect has not painted yet. */
   const verifying = verify.isPending || verify.isSuccess;
 
   return (
@@ -192,7 +153,6 @@ export default function CustomerLoginForm() {
                   value={code}
                   onChange={(next) => {
                     setCode(next);
-                    // The complaint referred to the previous code.
                     if (verify.error) verify.reset();
                   }}
                   length={OTP_LENGTH}
@@ -251,8 +211,6 @@ export default function CustomerLoginForm() {
                   value={mobile}
                   onChange={(event) => setMobile(event.target.value)}
                   error={
-                    // Only once something has been typed -- scolding an empty
-                    // field before the first submit is noise.
                     mobile && !isValidMobile(mobile)
                       ? "شماره موبایل ۱۱ رقمی را کامل وارد کنید."
                       : undefined
@@ -285,12 +243,6 @@ export default function CustomerLoginForm() {
   );
 }
 
-/**
- * The dead end, said plainly.
- *
- * No "try again" on the same number -- it would fail identically. The only
- * routes out are a different number or a trip to the shop.
- */
 function UnregisteredNotice({
   mobile,
   onBack,

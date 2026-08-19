@@ -2,13 +2,6 @@ import { PageHeader } from "@/components/ui";
 import { BalanceSection } from "./balance-section";
 import { VolumeAmountSection } from "./volume-amount-section";
 
-/**
- * Admin dashboard.
- *
- * A server component that composes client sections. Each section owns its own
- * queries and range state, so adding section 2 (debt/credit) later does not
- * touch this file beyond one more line.
- */
 export default function AdminOverviewPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -18,10 +11,8 @@ export default function AdminOverviewPage() {
         description="گزارش خرید و فروش در بازه‌ی انتخاب‌شده."
       />
 
-      {/* 1 — flow: what moved during a period. */}
       <VolumeAmountSection />
 
-      {/* 2 and 3 — stock: what is outstanding right now, in each unit. */}
       <SectionDivider title="مانده حساب‌ها (تومان)" />
       <BalanceSection unit="amount" />
 

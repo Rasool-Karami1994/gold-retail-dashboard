@@ -14,24 +14,13 @@ import { normalizeMobile } from "../lib/mobile.js";
 import { escapeRegex } from "../lib/regex.js";
 import { dateRangeClause } from "../lib/date-range.js";
 
-/**
- * All database access for transactions.
- *
- * `totalAmount`, `invoiceNumber` and `status` are never set from here -- the
- * schema's pre-validate hook derives all three. See transaction.model.ts for
- * the debt/credit rules that give `remainingAmount` its meaning.
- */
-
-/** Fields safe to show alongside a transaction. Never the whole customer. */
 const CUSTOMER_PROJECTION = "firstName lastName mobile";
 
 export interface PaymentInput {
   method: PaymentMethod;
   amount: number;
   bankType?: BankType;
-  /** card-to-card only. */
   destinationCard?: string;
-  /** Every other bank route -- they settle to an account, not a card. */
   destinationIban?: string;
   paidAt?: Date;
 }
@@ -42,7 +31,6 @@ export interface CreateTransactionInput {
   goldType: GoldType;
   goldWeightGrams: number;
   dailyGoldPricePerGram: number;
-  /** Optional at the boundary; the model defaults it to 0. */
   profitPercentage?: number;
   payments?: PaymentInput[];
   invoicePdfUrl?: string | null;
@@ -56,8 +44,6 @@ export async function createTransaction(
     throw new HttpError(404, "Customer not found");
   }
 
-  // Fail before burning an invoice sequence number on a transaction that
-  // cannot exist.
   const customer = await CustomerModel.exists({ _id: input.customer });
   if (!customer) throw new HttpError(404, "Customer not found");
 
@@ -77,13 +63,6 @@ export async function createTransaction(
   return transaction;
 }
 
-/**
- * Adds one instalment, translating the model's outcome into HTTP.
- *
- * The guards live in the single atomic update rather than here, because a check
- * in this function would be a read the write cannot trust -- see the note on
- * `addPayment` in transaction.model.ts.
- */
 export async function addPayment(
   id: string,
   payment: PaymentInput,
@@ -102,8 +81,6 @@ export async function addPayment(
       );
     }
 
-    // The balance goes in the body: the client needs it to tell the user what
-    // WOULD have fit, and re-fetching to find out would race the next payment.
     throw new HttpError(
       400,
       `Payment exceeds the remaining balance of ${outcome.remainingAmount}`,
@@ -124,7 +101,6 @@ export async function getTransactionById(id: string): Promise<TransactionDocumen
   return transaction;
 }
 
-/** Detail view: the transaction with its customer and issuing admin resolved. */
 export async function getTransactionDetail(id: string) {
   if (!isValidObjectId(id)) throw new HttpError(404, "Transaction not found");
 
@@ -148,14 +124,6 @@ export interface AdminListFilters {
   type?: TransactionType;
 }
 
-/**
- * Resolves customerName / customerMobile into a set of customer ids.
- *
- * These cannot be filtered with `populate()` -- it runs as a second query
- * after this one, so there is no customer field on a transaction to match
- * against. Resolving ids first turns it into an indexed `$in` here. Returns
- * `null` when neither filter was supplied.
- */
 async function resolveCustomerIds(
   name?: string,
   mobile?: string,
@@ -171,7 +139,6 @@ async function resolveCustomerIds(
 
   if (mobile) {
     const normalized = normalizeMobile(mobile);
-    // Match the raw term too, so a partial like "0912" still works.
     const terms = normalized && normalized !== mobile ? [normalized, mobile] : [mobile];
     conditions.push({
       $or: terms.map((term) => ({
@@ -196,14 +163,11 @@ export async function listTransactionsForAdmin(filters: AdminListFilters) {
   );
 
   if (customerIds !== null) {
-    // No customer matched, so no transaction can. Skip the second round trip.
     if (customerIds.length === 0) return emptyPage(filters);
     query.customer = { $in: customerIds };
   }
 
   if (filters.invoiceNumber) {
-    // Contains rather than exact: staff typically type the trailing sequence
-    // ("0007") rather than the full INV-YYYYMMDD-0007.
     query.invoiceNumber = {
       $regex: escapeRegex(filters.invoiceNumber.trim()),
       $options: "i",
@@ -224,17 +188,10 @@ export interface CustomerListFilters {
   limit: number;
   dateFrom?: Date;
   dateTo?: Date;
-  /** Bounds on `totalAmount`, the gross value of the deal. */
   minAmount?: number;
   maxAmount?: number;
 }
 
-/**
- * The signed-in customer's own transactions.
- *
- * `customerId` comes from `req.user`, never from the request, so the scope
- * cannot be widened by a crafted query string.
- */
 export async function listTransactionsForCustomer(
   customerId: string,
   filters: CustomerListFilters,
@@ -254,12 +211,6 @@ export async function listTransactionsForCustomer(
   return runPagedQuery(query, filters);
 }
 
-/**
- * One transaction, but only if it belongs to `customerId`.
- *
- * Answers 404 rather than 403 for someone else's invoice: a 403 would confirm
- * the id exists, which is a customer-enumeration oracle over invoice numbers.
- */
 export async function getCustomerTransaction(customerId: string, id: string) {
   if (!isValidObjectId(id)) throw new HttpError(404, "Transaction not found");
 
@@ -278,7 +229,6 @@ async function runPagedQuery(
 ) {
   const [items, total] = await Promise.all([
     TransactionModel.find(query)
-      // _id breaks ties so paging is stable when createdAt collides.
       .sort({ createdAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit)

@@ -6,12 +6,6 @@ import { cn } from "@/lib/cn";
 import { useDisplayName } from "@/stores/auth.store";
 import { useUiStore } from "@/stores/ui.store";
 
-/**
- * Admin navigation. Icons are passed as nodes rather than pulled from an icon
- * package, so the kit stays dependency-free -- swap these for lucide-react or
- * anything else without touching Sidebar.
- */
-
 function Icon({ children }: { children: React.ReactNode }) {
   return (
     <svg
@@ -47,12 +41,6 @@ const items: SidebarItem[] = [
     href: TRANSACTIONS,
     label: "معاملات",
     icon: <Icon><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6M8 13h8M8 17h5" /></Icon>,
-    /**
-     * Plain prefix matching would light this up on /admin/transactions/new as
-     * well, so both it and "Create Transaction" below would look selected.
-     * `exact` would fix that but then stop marking this item on a detail page
-     * like /admin/transactions/:id, which does belong to this section.
-     */
     activeWhen: (pathname) =>
       pathname !== NEW_TRANSACTION &&
       (pathname === TRANSACTIONS || pathname.startsWith(`${TRANSACTIONS}/`)),
@@ -69,14 +57,6 @@ const items: SidebarItem[] = [
   },
 ];
 
-/**
- * The component gallery, appended only while developing.
- *
- * The link is hidden AND the route is blocked in middleware -- hiding alone
- * would leave /admin/design reachable by typing it. `IS_DEV` is a build-time
- * constant, so in a production bundle this spreads an empty array and the item
- * is not merely hidden but absent from the shipped JavaScript.
- */
 const devItems: SidebarItem[] = IS_DEV
   ? [
       {
@@ -91,8 +71,6 @@ const navItems: SidebarItem[] = [...items, ...devItems];
 
 export function AdminSidebar() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
-  // Populated by the top bar's /me query. Null until it lands, and after a
-  // reload, because the auth store is not persisted.
   const displayName = useDisplayName();
 
   return (
@@ -112,8 +90,6 @@ export function AdminSidebar() {
           >
             {displayName?.[0]?.toUpperCase() ?? "‌"}
           </span>
-          {/* Hidden on the same terms as the nav labels -- below `lg` the rail
-              is 4.5rem wide and this block would overflow it. */}
           <div className={cn("min-w-0 flex-col", sidebarWideOnly(collapsed, "flex"))}>
             {displayName ? (
               <span className="truncate text-sm text-fg">{displayName}</span>

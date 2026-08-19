@@ -49,21 +49,6 @@ import {
   type TransactionOutput,
 } from "./form-schema";
 
-/**
- * Recording a deal at the counter.
- *
- * The customer comes first and gates everything else. Weight and price mean
- * nothing without someone to bill, and an invoice half-filled before anyone
- * checked whether the customer exists is an invoice that gets abandoned when
- * the answer is "no" -- so the rest of the form does not appear until a
- * customer is locked in.
- *
- * `totalAmount`, `invoiceNumber` and `status` are never sent. The model derives
- * all three, and the total on screen is a preview of that arithmetic rather
- * than a field: if a client could post a total, it could post one that
- * disagrees with weight x price.
- */
-
 const TRANSACTIONS = "/admin/transactions";
 
 function messageForCreate(error: unknown): string {
@@ -77,8 +62,6 @@ function messageForCreate(error: unknown): string {
     case 401:
     case 403:
       return "نشست شما منقضی شده است. دوباره وارد شوید.";
-    // The picker resolved this customer moments ago, so a 404 means the record
-    // was deleted in between.
     case 404:
       return "این مشتری دیگر در سیستم موجود نیست. مشتری را دوباره انتخاب کنید.";
     default:
@@ -92,12 +75,6 @@ export function NewTransactionForm() {
   const [customer, setCustomer] = React.useState<SelectedCustomer | null>(null);
   const [created, setCreated] = React.useState<TransactionDetail | null>(null);
 
-  /**
-   * Three generics, not one: the values the fields hold are strings and empty
-   * selects, and the values the resolver hands `handleSubmit` are the parsed
-   * numbers and narrowed unions. Declaring both is what lets the submit handler
-   * receive `TransactionOutput` without a cast.
-   */
   const form = useForm<TransactionFormValues, unknown, TransactionOutput>({
     resolver: zodResolver(transactionSchema),
     mode: "onSubmit",
@@ -107,8 +84,6 @@ export function NewTransactionForm() {
       goldType: "",
       goldWeightGrams: "",
       dailyGoldPricePerGram: "",
-      // "0", not "": the margin is genuinely zero until someone says otherwise,
-      // and a blank required number would fail validation on an untouched form.
       profitPercentage: "0",
       payments: [],
     },
@@ -124,8 +99,6 @@ export function NewTransactionForm() {
   const create = useMutation({
     mutationFn: (input: CreateTransactionInput) => createTransaction(input),
     onSuccess: (transaction) => {
-      // The new invoice belongs in every cached list and on the customer's
-      // profile, both of which are now one row short.
       queryClient.invalidateQueries({ queryKey: transactionKeys.all });
       queryClient.invalidateQueries({ queryKey: customerKeys.all });
       setCreated(transaction);
@@ -137,19 +110,9 @@ export function NewTransactionForm() {
 
     const payments: TransactionPaymentInput[] = values.payments.map((payment) => {
       if (payment.method === "cash") {
-        // Deliberately omitted, not blanked: the API rejects a cash payment
-        // that carries bankType or destinationCard at all.
         return { method: "cash", amount: payment.amount };
       }
 
-      /**
-       * Only the destination this route actually uses is sent.
-       *
-       * The form clears the other one on every change of bank type, so it
-       * should already be blank -- but the API rejects a card on a paya row and
-       * an IBAN on a card-to-card row rather than ignoring them, so selecting
-       * by route here is what makes that impossible rather than unlikely.
-       */
       const kind = destinationKindFor(payment.bankType);
 
       const card =
@@ -164,8 +127,6 @@ export function NewTransactionForm() {
       return {
         method: "bank",
         amount: payment.amount,
-        // Guaranteed by the schema's refinement; the fallback keeps TypeScript
-        // honest without a cast.
         bankType: payment.bankType || undefined,
         ...(card ? { destinationCard: card } : {}),
         ...(iban ? { destinationIban: iban } : {}),
@@ -230,9 +191,6 @@ export function NewTransactionForm() {
                     ))}
                   </Select>
 
-                  {/* Grams get the grouping but not the words: "۱ میلیون گرم"
-                      is not a sentence anyone would say, and the decimal point
-                      matters here in a way it does not for Toman. */}
                   <Controller
                     control={control}
                     name="goldWeightGrams"
@@ -297,8 +255,6 @@ export function NewTransactionForm() {
               <div className="flex items-center gap-3">
                 <Button
                   type="submit"
-                  // Stays busy through isSuccess: the success panel has not
-                  // painted yet, and a second click would record the sale twice.
                   loading={create.isPending || create.isSuccess}
                 >
                   ثبت معامله
@@ -315,15 +271,6 @@ export function NewTransactionForm() {
   );
 }
 
-/**
- * The total, and how it got there.
- *
- * The breakdown exists because the total alone stops being self-evident the
- * moment a margin is involved: base and total differ, and which way they differ
- * depends on the transaction type. Showing the three lines means a cashier can
- * see the sign flip when they change the type, rather than watching one number
- * move and having to work out why.
- */
 function TotalPreview() {
   const { baseAmount, profitAmount, totalAmount, type, percent } =
     useWatchedTotals();
@@ -403,18 +350,9 @@ function BreakdownRow({
 }
 
 function TotalledSummary() {
-  // The payments summary settles against the FINAL total, margin included --
-  // that is the figure the customer owes.
   return <PaymentsSummary totalAmount={useWatchedTotals().totalAmount} />;
 }
 
-/**
- * The total and its parts, from the fields that produce them.
- *
- * Delegates the arithmetic to `computeTotals`, which the schema module owns and
- * which mirrors the model hook step for step -- showing one figure here and
- * storing another is a discrepancy the cashier has no way to explain.
- */
 function useWatchedTotals() {
   const { control } = useFormContext<TransactionFormValues>();
   const goldWeightGrams = useWatch({ control, name: "goldWeightGrams" });
@@ -423,8 +361,6 @@ function useWatchedTotals() {
     name: "dailyGoldPricePerGram",
   });
   const profitPercentage = useWatch({ control, name: "profitPercentage" });
-  // Watched, not read once: the sign in the breakdown has to flip the instant
-  // the type changes, without waiting for another keystroke.
   const type = useWatch({ control, name: "type" });
 
   const totals = computeTotals({

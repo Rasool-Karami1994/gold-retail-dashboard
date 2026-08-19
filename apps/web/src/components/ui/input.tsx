@@ -8,21 +8,8 @@ export interface InputProps
   label?: string;
   hint?: string;
   error?: string;
-  /** Sits at the inline-start edge (right, in RTL). */
   startAdornment?: React.ReactNode;
-  /** Sits at the inline-end edge (left, in RTL). */
   endAdornment?: React.ReactNode;
-  /**
-   * Direction of the FIELD ROW -- the box, its adornments and their order --
-   * as opposed to `dir`, which React puts on the <input> and which governs the
-   * text inside it.
-   *
-   * The two are usually the same and this can be left alone. They come apart
-   * when the field holds something inherently left-to-right that carries a
-   * symbol: a percentage reads "۱۲٪", so the sign has to sit after the digits,
-   * and in an RTL row "after" is the wrong side of the box. Setting this to
-   * "ltr" lays the row out the way the value reads.
-   */
   fieldDir?: "ltr" | "rtl";
 }
 

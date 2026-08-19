@@ -5,18 +5,6 @@ import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/format";
 import { Button } from "./button";
 
-/**
- * Generic, sortable, paginated table.
- *
- * `T` flows from `data` through `columns` to every render callback, so
- * `row.someField` is checked and autocompleted at each use site -- no `any`,
- * no per-table interface.
- *
- * Sorting and pagination are client-side by default. Pass `manual` for
- * server-driven data: internal processing is skipped and the component becomes
- * a controlled view over whatever `data` and `totalRows` you hand it.
- */
-
 export type SortDirection = "asc" | "desc";
 
 export interface SortState {
@@ -25,20 +13,12 @@ export interface SortState {
 }
 
 export interface Column<T> {
-  /** Stable identifier, also used as the sort key. */
   id: string;
   header: React.ReactNode;
-  /** Cell contents. Receives the whole row. */
   cell: (row: T, rowIndex: number) => React.ReactNode;
-  /**
-   * Comparable value for sorting. Supplying this is what makes a column
-   * sortable -- a column of buttons has no meaningful order and simply omits it.
-   */
   sortValue?: (row: T) => string | number | Date | null | undefined;
   align?: "start" | "center" | "end";
-  /** Any CSS width, e.g. "12rem" or "20%". */
   width?: string;
-  /** Hidden below the `sm` breakpoint. */
   hideOnMobile?: boolean;
   className?: string;
 }
@@ -46,14 +26,11 @@ export interface Column<T> {
 export interface DataTableProps<T> {
   data: T[];
   columns: Column<T>[];
-  /** Stable React key per row. Index is a fallback, not a good one. */
   rowKey: (row: T, index: number) => string;
 
   pageSize?: number;
-  /** Hides the pager entirely. */
   paginated?: boolean;
 
-  /** Sort to start from. Uncontrolled unless `onSortChange` is also given. */
   defaultSort?: SortState;
   sort?: SortState | null;
   onSortChange?: (sort: SortState | null) => void;
@@ -61,10 +38,6 @@ export interface DataTableProps<T> {
   page?: number;
   onPageChange?: (page: number) => void;
 
-  /**
-   * Server-side mode: skip internal sorting and slicing. `data` is assumed to
-   * be exactly the page to display, and `totalRows` drives the pager.
-   */
   manual?: boolean;
   totalRows?: number;
 
@@ -72,7 +45,6 @@ export interface DataTableProps<T> {
   emptyMessage?: React.ReactNode;
   onRowClick?: (row: T) => void;
   className?: string;
-  /** Accessible caption. Visually hidden but read by screen readers. */
   caption?: string;
 }
 
@@ -119,7 +91,6 @@ export function DataTable<T>({
     onPageChange?.(next);
   };
 
-  /** asc -> desc -> unsorted, so a column can be cycled back off. */
   const toggleSort = (columnId: string) => {
     if (!sort || sort.columnId !== columnId) {
       setSort({ columnId, direction: "asc" });
@@ -139,14 +110,10 @@ export function DataTable<T>({
 
     const factor = sort.direction === "asc" ? 1 : -1;
 
-    // Copy first: Array.sort mutates, and mutating props is a bug that only
-    // shows up once a parent memoises the array.
     return [...data].sort((a, b) => {
       const left = column.sortValue!(a);
       const right = column.sortValue!(b);
 
-      // Nullish always sorts last, regardless of direction -- "no value" is
-      // not smaller than every value, it's absent.
       if (left == null && right == null) return 0;
       if (left == null) return 1;
       if (right == null) return -1;
@@ -157,8 +124,6 @@ export function DataTable<T>({
       if (left instanceof Date && right instanceof Date) {
         return (left.getTime() - right.getTime()) * factor;
       }
-      // localeCompare with "fa" so Persian text orders correctly; the numeric
-      // option keeps "۱۰" after "۹" instead of before it.
       return (
         String(left).localeCompare(String(right), "fa", { numeric: true }) * factor
       );
@@ -179,25 +144,7 @@ export function DataTable<T>({
 
   return (
     <div className={cn("flex flex-col gap-4", className)}>
-      {/*
-        `relative` is load-bearing, not decoration. The accessible caption and
-        the sr-only column headers are `position: absolute`, and `overflow`
-        does not clip an absolutely positioned descendant whose containing
-        block sits outside the scroller. With a static wrapper their containing
-        block was the viewport, so on a table wide enough to scroll they were
-        laid out past its edge and dragged a horizontal scrollbar onto the whole
-        page. Positioning the wrapper makes it their containing block, and the
-        overflow above finally applies to them too.
-      */}
       <div className="relative overflow-x-auto rounded-lg border border-border bg-surface">
-        {/*
-          `min-w-max` is what makes the `overflow-x-auto` above mean anything.
-          Without it a table is free to shrink below its columns' declared
-          widths, so a wide one silently compressed every cell instead of
-          scrolling -- nine columns of invoice history turned into three-line
-          cells rather than a scrollable row. When the columns do fit, max-content
-          is narrower than the container and `w-full` still wins.
-        */}
         <table className="w-full min-w-max border-collapse text-sm">
           {caption && <caption className="sr-only">{caption}</caption>}
 
@@ -335,9 +282,6 @@ function Pagination({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      {/* Through formatNumber like every other figure in the app: raw
-          interpolation renders Latin digits, which sat next to Persian numerals
-          in the very columns being counted. */}
       <p className="text-xs text-fg-muted">
         نمایش {formatNumber(first)}–{formatNumber(last)} از {formatNumber(total)}
       </p>
@@ -369,7 +313,6 @@ function Pagination({
   );
 }
 
-/** Chevron pair; the active direction is highlighted. */
 function SortIcon({ direction }: { direction?: SortDirection }) {
   return (
     <svg

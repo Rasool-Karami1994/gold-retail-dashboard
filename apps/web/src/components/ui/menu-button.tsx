@@ -3,14 +3,6 @@
 import { useUiStore } from "@/stores/ui.store";
 import { cn } from "@/lib/cn";
 
-/**
- * Opens the sidebar drawer. Mobile only.
- *
- * Lives beside the Sidebar rather than inside it because the trigger has to sit
- * in whatever header each area has -- the admin's top bar, the customer's
- * mobile-only strip -- while the drawer itself is the rail. Both talk to the
- * same store rather than passing a callback down two trees.
- */
 export function SidebarMenuButton({ className }: { className?: string }) {
   const open = useUiStore((s) => s.openSidebarDrawer);
   const drawerOpen = useUiStore((s) => s.sidebarDrawerOpen);

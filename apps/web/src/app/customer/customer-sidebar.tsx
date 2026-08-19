@@ -23,15 +23,6 @@ import { useAuthStore, useCurrentUser, useDisplayName } from "@/stores/auth.stor
 import { useUiStore } from "@/stores/ui.store";
 import { CUSTOMER_PROFILE, CUSTOMER_TRANSACTIONS } from "./routes";
 
-/**
- * Navigation for the customer area.
- *
- * Two destinations and a way out -- that is the whole product for a customer,
- * so there is no top bar: the name and the logout button live in the rail's
- * footer rather than in a second strip of chrome above content that is mostly
- * one table.
- */
-
 function Icon({ children }: { children: React.ReactNode }) {
   return (
     <svg
@@ -75,8 +66,6 @@ const items: SidebarItem[] = [
 export function CustomerSidebar() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  // Same persisted preference the admin rail uses; the footer below has to hide
-  // its user block on exactly the terms the nav labels do.
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const setUser = useAuthStore((s) => s.setUser);
   const setAnonymous = useAuthStore((s) => s.setAnonymous);
@@ -85,29 +74,19 @@ export function CustomerSidebar() {
   const { data, isPending, isError } = useQuery({
     queryKey: customerMeKey,
     queryFn: fetchCustomerMe,
-    // The middleware already gated this area, so a 401 here means the cookie
-    // died mid-session. Don't retry -- the effect below sends them to sign-in.
     retry: false,
     staleTime: 5 * 60_000,
   });
 
-  // Mirror the answer into the store, which is what this footer actually
-  // renders. Going through the store rather than straight from `data` is what
-  // lets the profile form's save show up here immediately -- it writes the new
-  // name to the store, and this re-renders without waiting for a refetch.
   useEffect(() => {
     if (data) setUser(toCustomerAuthUser(data));
     else if (isError) setAnonymous();
   }, [data, isError, setUser, setAnonymous]);
 
-  // A session that expired while the tab sat open: the middleware only runs on
-  // navigation, so nothing else would notice until the next click.
   useEffect(() => {
     if (isError) router.replace(ROUTES.customerLogin);
   }, [isError, router]);
 
-  // `data` is the fallback for the render between the query resolving and the
-  // effect above running, so the name never blinks through a dash.
   const displayName = useDisplayName() ?? data?.fullName ?? null;
   const mobile = useCurrentUser()?.mobile ?? data?.mobile ?? "";
 
@@ -115,21 +94,12 @@ export function CustomerSidebar() {
     mutationFn: logoutCustomer,
     onSuccess: () => {
       reset();
-      // Drop every cached response. Without this, signing in as a different
-      // customer on the same browser would paint the previous one's invoices
-      // from cache before any refetch lands.
       queryClient.clear();
 
       router.replace(ROUTES.customerLogin);
-      // The cookie is gone as of this response; refresh so the middleware
-      // re-evaluates with it absent.
       router.refresh();
     },
     onError: (error) => {
-      // Deliberately does NOT navigate. The cookie is httpOnly, so if the
-      // server never cleared it the session is still live -- bouncing to the
-      // sign-in page would be redirected straight back by the middleware, which
-      // reads as the button being broken.
       toast.error(
         error instanceof ApiError
           ? "خروج انجام نشد. دوباره تلاش کنید."
@@ -157,8 +127,6 @@ export function CustomerSidebar() {
               {displayName?.[0] ?? "‌"}
             </span>
 
-            {/* Hidden on the same terms as the nav labels -- below `lg` the
-                rail is 4.5rem wide and this block would overflow it. */}
             <div className={cn("min-w-0 flex-col", sidebarWideOnly(collapsed, "flex"))}>
               {isPending ? (
                 <span className="h-4 w-24 animate-pulse rounded bg-surface-raised" />
@@ -191,14 +159,11 @@ export function CustomerSidebar() {
                 strokeLinejoin="round"
                 aria-hidden="true"
               >
-                {/* Points inline-start (the way out) in RTL. */}
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <path d="m16 17 5-5-5-5M21 12H9" />
               </svg>
             }
           >
-            {/* The icon carries the meaning on a narrow rail; `aria-label`
-                below keeps the button named for a screen reader either way. */}
             <span className={sidebarWideOnly(collapsed)}>خروج</span>
           </Button>
         </div>

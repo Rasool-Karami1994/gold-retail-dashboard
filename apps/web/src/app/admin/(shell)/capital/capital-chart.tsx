@@ -7,22 +7,6 @@ import { formatGrams, formatToman } from "@/lib/format";
 import { formatJalali, fromApiDate } from "@/lib/jalali";
 import type { CapitalPoint, Granularity } from "@/lib/capital-api";
 
-/**
- * Capital in grams over time.
- *
- * MEASURED VERSUS ESTIMATED POINTS. A day with no recorded gold price is
- * valued at the last price on record, which makes its figure an estimate --
- * the metal is exact, the cash's gram equivalent is not. Drawn as a hollow
- * ring against a filled dot, so the difference is visible without reading the
- * tooltip, and named in the legend so the shape means something.
- *
- * The line itself is not split into measured and estimated segments: a
- * Recharts `<Line>` is one path with one stroke, so that would mean two series
- * with holes in each and a legend nobody asked for. The points carry the
- * distinction, which is where it actually belongs -- it is the point that is
- * estimated, not the interval between two of them.
- */
-
 export interface CapitalDatum {
   label: string;
   capitalGrams: number;
@@ -32,10 +16,9 @@ export interface CapitalDatum {
   cash: number;
 }
 
-const LINE = "#4c5bf5"; // primary
-const ESTIMATED = "#f97316"; // warning
+const LINE = "#4c5bf5";
+const ESTIMATED = "#f97316";
 
-/** Bucket label: a day needs the day, a month does not. */
 export function toChartData(
   series: CapitalPoint[],
   granularity: Granularity,
@@ -43,8 +26,6 @@ export function toChartData(
   const format = granularity === "month" ? "YYYY/MM" : "MM/DD";
 
   return series.map((point) => ({
-    // `point.day`, not `point.date`: the bucket start is a calendar day, and
-    // reading its instant through the browser's timezone moves the label.
     label: formatJalali(fromApiDate(point.day), format),
     capitalGrams: point.capitalGrams,
     estimated: point.estimated,
@@ -54,22 +35,11 @@ export function toChartData(
   }));
 }
 
-/**
- * Written as a plain function, not a component: ChartCard puts its child
- * straight inside Recharts' <ResponsiveContainer>, which requires a chart
- * element as its direct child and will not measure a wrapper.
- */
 export function CapitalLine({ data }: { data: CapitalDatum[] }) {
   return (
     <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
       <CartesianGrid {...gridProps} />
       <XAxis dataKey="label" {...rtlAxisProps.x} minTickGap={24} />
-      {/*
-        `["auto", "auto"]` rather than Recharts' default, which anchors the axis
-        at zero. A shop's capital sits around a large number and moves by a few
-        percent -- anchored at zero, that is a flat line across the top of the
-        card and the whole point of the chart is lost.
-      */}
       <YAxis
         {...rtlAxisProps.y}
         domain={["auto", "auto"]}
@@ -84,7 +54,6 @@ export function CapitalLine({ data }: { data: CapitalDatum[] }) {
         dataKey="capitalGrams"
         stroke={LINE}
         strokeWidth={2}
-        // A single point has no line to draw, so it has to be visible as a dot.
         dot={<CapitalDot />}
         activeDot={{ r: 5, fill: LINE, stroke: chartColors.tooltipBg, strokeWidth: 2 }}
         isAnimationActive={false}
@@ -93,10 +62,6 @@ export function CapitalLine({ data }: { data: CapitalDatum[] }) {
   );
 }
 
-/**
- * Recharts clones this with `cx`/`cy`/`payload`, so the props are partial by
- * nature -- it is never rendered by hand.
- */
 function CapitalDot(props: {
   cx?: number;
   cy?: number;
@@ -111,7 +76,6 @@ function CapitalDot(props: {
       cx={cx}
       cy={cy}
       r={3.5}
-      // Hollow: the ring reads as "outline of a value" rather than a value.
       fill={chartColors.tooltipBg}
       stroke={ESTIMATED}
       strokeWidth={2}
@@ -134,7 +98,6 @@ function CapitalTooltip({
   if (!active || !datum) return null;
 
   return (
-    // Recharts renders the tooltip in a plain div outside the RTL flow.
     <div
       dir="rtl"
       className="rounded-lg border border-border bg-surface-overlay px-3 py-2 text-xs shadow-lg"
@@ -163,7 +126,6 @@ function CapitalTooltip({
   );
 }
 
-/** Sits in the chart card's header, where it explains the two dot shapes. */
 export function EstimatedLegend() {
   return (
     <div className="flex items-center gap-3 text-2xs text-fg-muted">

@@ -21,17 +21,6 @@ import {
   type TransactionFormValues,
 } from "./form-schema";
 
-/**
- * The instalments recorded against a transaction.
- *
- * A deal can be settled in one payment, several, or none at all -- an unpaid
- * invoice is the normal case for a shop that extends credit, which is why the
- * list starts empty and nothing here is required.
- *
- * Which fields a row shows depends on its own method, so each row watches only
- * its own `method` rather than the parent re-rendering every row on every
- * keystroke.
- */
 export function PaymentsField() {
   const { control } = useFormContext<TransactionFormValues>();
   const { fields, append, remove } = useFieldArray({ control, name: "payments" });
@@ -59,8 +48,6 @@ export function PaymentsField() {
       ) : (
         <ol className="flex flex-col gap-3">
           {fields.map((field, index) => (
-            // field.id, not the index: removing a middle row would otherwise
-            // re-key the rows after it and hand them each other's state.
             <li key={field.id}>
               <PaymentRow index={index} onRemove={() => remove(index)} />
             </li>
@@ -90,14 +77,6 @@ function PaymentRow({
   const rowErrors = errors.payments?.[index];
 
   const isBank = method === "bank";
-  /**
-   * One slot in the layout, two different things in it.
-   *
-   * Card-to-card names a card; every other route settles to an account and
-   * names a Sheba. Showing both at once would ask for a number that does not exist for
-   * the route chosen, so the field swaps its name, its placeholder and its
-   * rules together.
-   */
   const destination = isBank ? destinationKindFor(bankType) : null;
 
   return (
@@ -121,9 +100,6 @@ function PaymentRow({
           label="روش پرداخت"
           error={rowErrors?.method?.message}
           {...register(`payments.${index}.method`, {
-            // Switching to cash clears the bank-only fields. The API rejects a
-            // cash payment that carries a bankType outright, and leaving stale
-            // values behind would make that rejection look like a mystery.
             onChange: (event) => {
               if (event.target.value === "cash") {
                 setValue(`payments.${index}.bankType`, "");
@@ -160,20 +136,11 @@ function PaymentRow({
               placeholder="انتخاب کنید"
               error={rowErrors?.bankType?.message}
               {...register(`payments.${index}.bankType`, {
-                /**
-                 * Switching routes clears whichever destination the new one
-                 * does not use. The API rejects a card on a paya row and an
-                 * IBAN on a card-to-card row outright, so a value left behind
-                 * by a change of mind would fail the submit with an error
-                 * pointing at a field no longer on screen.
-                 */
                 onChange: (event) => {
                   const kind = destinationKindFor(event.target.value);
                   if (kind !== "card") {
                     setValue(`payments.${index}.destinationCard`, "");
                   }
-                  // Re-seed the prefix rather than blanking, so the field is
-                  // ready to take digits the moment it appears.
                   setValue(
                     `payments.${index}.destinationIban`,
                     kind === "iban" ? IBAN_PREFIX : "",
@@ -191,9 +158,6 @@ function PaymentRow({
             {destination === "iban" ? (
               <Input
                 label="شماره شبا مقصد"
-                // The field opens with "IR" already in it, so all that is left
-                // to enter is digits -- and a pasted full Sheba still works,
-                // because normalizeIban strips a second prefix.
                 inputMode="numeric"
                 dir="ltr"
                 placeholder="IR854752136958475213658742"
@@ -217,25 +181,15 @@ function PaymentRow({
   );
 }
 
-/**
- * The sum of what has been entered so far, and what it leaves outstanding.
- *
- * Separate from the rows so that typing an amount re-renders this line rather
- * than the whole form.
- */
 export function PaymentsSummary({ totalAmount }: { totalAmount: number }) {
   const { control } = useFormContext<TransactionFormValues>();
   const payments = useWatch({ control, name: "payments" });
 
   const paid = (payments ?? []).reduce((sum, payment) => {
     const amount = toNumber(payment?.amount);
-    // NaN is a half-typed row, not a zero-value one; skip it rather than
-    // poisoning the whole total.
     return sum + (Number.isFinite(amount) ? amount : 0);
   }, 0);
 
-  // Clamped, matching the model: an overpayment settles the invoice, it does
-  // not turn into a debt in the other direction. A refund is its own deal.
   const remaining = Math.max(0, totalAmount - paid);
   const overpaid = paid > totalAmount && totalAmount > 0;
 

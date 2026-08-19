@@ -37,15 +37,6 @@ import {
   transactionKeys,
   type TransactionDetail,
 } from "@/lib/transactions-api";
-/**
- * The create form's payment rules, reused rather than restated.
- *
- * A payment is a payment wherever it is entered: the same method/bank-type
- * pairing, the same card-or-Sheba split, the same normalisers. Importing across
- * route folders is not lovely, but a second copy of "when is a bank payment
- * complete" is the thing that actually goes wrong -- it already had to change
- * once when paya and bridge started recording a Sheba.
- */
 import {
   BANK_TYPES,
   BANK_TYPE_LABELS,
@@ -68,13 +59,6 @@ const GOLD_TYPE_LABELS = {
   "second-hand": "دست‌دوم",
 } as const;
 
-/**
- * Matches the model's settlement tolerance.
- *
- * The API accepts a payment up to this much over the balance rather than
- * refusing a fraction of a Toman, and the form has to agree or "pay the rest"
- * could be rejected client-side for an amount the server would have taken.
- */
 const SETTLEMENT_TOLERANCE = 0.5;
 
 export function AddPaymentScreen({ id }: { id: string }) {
@@ -89,13 +73,6 @@ export function AddPaymentScreen({ id }: { id: string }) {
       !(err instanceof ApiError && err.status === 404) && count < 2,
   });
 
-  /**
-   * Distinguishes "arrived at a settled invoice" from "just settled it".
-   *
-   * Both end with `status === "settled"`, and the guard below must only fire
-   * for the first: telling someone their payment cannot be recorded, one tick
-   * after recording it, would be a lie.
-   */
   const settledHere = React.useRef(false);
   const bounced = React.useRef(false);
 
@@ -105,25 +82,11 @@ export function AddPaymentScreen({ id }: { id: string }) {
     }
     bounced.current = true;
     toast.info("این فاکتور تسویه شده است.", {
-      // A stable id, so the double-invoke below replaces the toast rather than
-      // stacking a second identical one.
       id: `settled-${id}`,
       description: "پرداخت تازه‌ای برای آن ثبت نمی‌شود.",
-      // Longer than the default: it has to explain a redirect that is already
-      // under way, and the reader arrives on the other page mid-count.
       duration: 8000,
     });
 
-    /**
-     * A beat between the toast and the navigation, so the toast paints before
-     * Next starts tearing this tree down.
-     *
-     * THE LATCH IS RELEASED IN THE CLEANUP, and that is load-bearing. React
-     * StrictMode invokes this effect, cleans up, and invokes it again in
-     * development. Clearing the timer without releasing `bounced` cancelled the
-     * redirect on the first pass and then short-circuited the second, leaving
-     * the page sitting on a form it had already decided not to show.
-     */
     const timer = window.setTimeout(() => router.replace(detailHref), 50);
     return () => {
       window.clearTimeout(timer);
@@ -156,8 +119,6 @@ export function AddPaymentScreen({ id }: { id: string }) {
     );
   }
 
-  // Nothing rendered on the way out. The form would be unusable anyway, and
-  // flashing it before the redirect lands reads as a bug.
   if (data?.status === "settled" && !settledHere.current) return null;
 
   return (
@@ -206,8 +167,6 @@ export function AddPaymentScreen({ id }: { id: string }) {
           <NewPaymentForm
             transaction={data}
             onRecorded={(updated) => {
-              // The list, the customer's aggregates and the overview's
-              // debt/credit figures are all now one payment out of date.
               queryClient.setQueryData(transactionKeys.detail(id), updated);
               queryClient.invalidateQueries({ queryKey: transactionKeys.all });
               queryClient.invalidateQueries({ queryKey: customerKeys.all });
@@ -229,9 +188,6 @@ export function AddPaymentScreen({ id }: { id: string }) {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-
-/** Total, paid and remaining, with each amount spelled out underneath. */
 function Figures({ transaction }: { transaction: TransactionDetail }) {
   return (
     <section className="grid gap-4 lg:grid-cols-3">
@@ -262,15 +218,6 @@ function Figures({ transaction }: { transaction: TransactionDetail }) {
   );
 }
 
-/**
- * The deal, laid out like the create form and entirely locked.
- *
- * Rendered as real disabled inputs rather than a definition list, because the
- * point is to look like the form it mirrors -- an admin who has just come from
- * "ثبت معامله" should recognise the shape and see at a glance that only the
- * bottom section is theirs to fill in. The API takes a payment and nothing
- * else, so none of this could be edited here even if it were offered.
- */
 function LockedDeal({ transaction }: { transaction: TransactionDetail }) {
   const customerName = transaction.customer
     ? `${transaction.customer.firstName} ${transaction.customer.lastName}`.trim()
@@ -311,10 +258,6 @@ function LockedDeal({ transaction }: { transaction: TransactionDetail }) {
             value={formatPercent(transaction.profitPercentage)}
             dir="ltr"
           />
-          {/*
-            Only when there was one. Every invoice written before margins
-            existed reads 0%, and a "۰ تومان" row on all of them is noise.
-          */}
           {transaction.profitAmount > 0 && (
             <Locked
               label={`${transaction.type === "buy" ? "کسر سود" : "سود"} (تومان)`}
@@ -335,12 +278,6 @@ function LockedDeal({ transaction }: { transaction: TransactionDetail }) {
   );
 }
 
-/**
- * A read-only field that looks locked rather than merely inert.
- *
- * `disabled` alone only dims it, which reads as "not available yet" as easily
- * as "cannot be changed". The padlock and the flatter surface say which.
- */
 function Locked({
   label,
   value,
@@ -362,8 +299,6 @@ function Locked({
     />
   );
 }
-
-/* -------------------------------------------------------------------------- */
 
 type PaymentFields = {
   method: "" | "cash" | "bank";
@@ -394,14 +329,6 @@ function NewPaymentForm({
 
   const [settled, setSettled] = React.useState<TransactionDetail | null>(null);
 
-  /**
-   * The shared payment rules plus the one this screen adds: an instalment
-   * cannot exceed what is left.
-   *
-   * Rebuilt when the balance moves, because the ceiling is data rather than a
-   * constant -- entering two payments in a row has to validate the second
-   * against what the first left behind.
-   */
   const schema = React.useMemo(
     () =>
       paymentSchema.superRefine((payment, ctx) => {
@@ -480,19 +407,11 @@ function NewPaymentForm({
         return;
       }
 
-      // More to pay, and quite possibly more to enter right now -- clear the
-      // fields and leave the admin where they are rather than navigating away
-      // mid-task.
       reset(EMPTY);
     },
     onError: (err) => {
       if (!(err instanceof ApiError)) return;
 
-      /**
-       * Both of these mean the invoice moved under this form -- somebody else
-       * paid while it was open. Neither is the admin's mistake, so they are
-       * answered on the field rather than as a failure of the submit.
-       */
       if (err.status === 400 && typeof err.body?.remainingAmount === "number") {
         setError("amount", {
           message: `مانده تغییر کرده است. حداکثر ${formatToman(
@@ -531,8 +450,6 @@ function NewPaymentForm({
               label="روش پرداخت"
               error={errors.method?.message}
               {...register("method", {
-                // A cash row carries no bank metadata, and the API rejects it
-                // rather than ignoring it.
                 onChange: (event) => {
                   if (event.target.value === "cash") {
                     setValue("bankType", "");
@@ -629,13 +546,6 @@ function NewPaymentForm({
   );
 }
 
-/**
- * Shown in place of the form once the invoice is fully paid.
- *
- * Redirects on a timer rather than immediately: the admin has just finished a
- * task and the confirmation is the point. `replace`, so the back button does
- * not return them to a form that would now refuse them.
- */
 function SettledPanel({ transaction }: { transaction: TransactionDetail }) {
   const router = useRouter();
   const detailHref = `${TRANSACTIONS}/${transaction.id}`;

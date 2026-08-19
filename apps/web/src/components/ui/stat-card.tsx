@@ -6,19 +6,6 @@ import { Card } from "./card";
 import { ErrorState } from "./error-state";
 import { formatNumber } from "@/lib/format";
 
-/**
- * A single figure, presented as the content rather than as a chart.
- *
- * The counterpart to ChartCard, and deliberately built to the same frame --
- * same Card, same bordered header, same rhythm -- so the two sit together on a
- * page without looking like different products.
- *
- * Use it when the number does not vary over an axis. A running total as of now
- * has nothing to plot: a chart of one value draws a bar that always fills its
- * plot area, which tells the reader nothing they cannot get from the number,
- * and costs a chart's worth of vertical space to say it.
- */
-
 export type StatTone = "neutral" | "danger" | "success" | "warning" | "primary";
 
 const toneText: Record<StatTone, string> = {
@@ -40,29 +27,16 @@ const toneChip: Record<StatTone, string> = {
 export interface StatCardProps {
   title: React.ReactNode;
   description?: React.ReactNode;
-  /** Extra header content, e.g. a filter or a link. */
   actions?: React.ReactNode;
 
   value: number;
-  /** Defaults to plain grouped digits; pass formatToman / formatGrams as needed. */
   format?: (value: number) => string;
-  /** Rendered after the number, smaller and muted: "تومان", "گرم". */
   unit?: React.ReactNode;
-  /**
-   * A line under the figure, in the muted secondary style: typically the amount
-   * spelled out by `formatTomanInWords`, which is the one thing grouping
-   * separators do not catch -- a whole extra zero.
-   */
   hint?: React.ReactNode;
-  /** Sits opposite the figure. Any 20-24px node. */
   icon?: React.ReactNode;
   tone?: StatTone;
 
   loading?: boolean;
-  /**
-   * Takes precedence over `loading`. A failed query has no value, and rendering
-   * `۰` for it would state something false rather than admit the failure.
-   */
   error?: boolean;
   errorMessage?: React.ReactNode;
   onRetry?: () => void;
@@ -110,8 +84,6 @@ export function StatCard({
               <span className="h-9 w-48 animate-pulse rounded bg-surface-raised" />
             ) : (
               <div className="flex min-w-0 flex-col gap-1">
-                {/* baseline so the unit sits on the number's baseline rather
-                    than floating against the top of a much larger glyph. */}
                 <p className="flex items-baseline gap-2">
                   <span
                     className={cn(

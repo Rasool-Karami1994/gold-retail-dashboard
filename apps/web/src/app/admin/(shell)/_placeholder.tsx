@@ -1,13 +1,5 @@
 import { Card, CardContent, CardDescription, CardTitle, PageHeader } from "@/components/ui";
 
-/**
- * Stand-in for a section that has a sidebar entry but no screen yet.
- *
- * The underscore prefix keeps this out of the router -- Next ignores
- * `_`-prefixed folders and this file exports no page. It exists so the four
- * navigation targets resolve instead of 404ing, which would make the shell look
- * broken while it is being built out.
- */
 export function SectionPlaceholder({
   eyebrow,
   title,
@@ -17,7 +9,6 @@ export function SectionPlaceholder({
   eyebrow: string;
   title: string;
   description: string;
-  /** The API this screen will read, so the next step has a starting point. */
   endpoint: string;
 }) {
   return (

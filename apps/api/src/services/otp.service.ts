@@ -8,26 +8,11 @@ import { getSmsProvider, SmsError, type SmsProvider } from "./sms.js";
 import { setAuthCookie } from "./token.service.js";
 import type { Response } from "express";
 
-/**
- * One-time-code issuing and verification -- the whole of customer auth.
- *
- * The two purposes have different gates, enforced by the callers:
- *   'login'    -- public. The customer must already exist.
- *   'register' -- admin-only. Reached from the staff "add customer" screen,
- *                 never from the public site. The customer must NOT exist yet.
- */
-
-/** Uniformly random N-digit code, leading zeros allowed. */
 function generateCode(length = env.OTP_LENGTH): string {
   const max = 10 ** length;
   return String(randomInt(0, max)).padStart(length, "0");
 }
 
-/**
- * Compares in constant time so response latency doesn't leak how many leading
- * digits were right. Length is compared first and separately -- timingSafeEqual
- * throws on a length mismatch, and code length isn't secret anyway.
- */
 function codesMatch(submitted: string, expected: string): boolean {
   const a = Buffer.from(submitted, "utf8");
   const b = Buffer.from(expected, "utf8");
@@ -44,16 +29,7 @@ export interface RequestOtpResult {
   mobile: string;
   purpose: OtpPurpose;
   expiresAt: Date;
-  /** Seconds until the code dies, for the client's countdown. */
   expiresInSeconds: number;
-  /**
-   * The code itself, present ONLY when SMS is mocked.
-   *
-   * Nothing was delivered in that mode, so this is the only way to finish a
-   * login locally. It is omitted entirely -- not blanked -- under a real
-   * gateway, so a production response cannot carry it even by accident. See the
-   * warning on MockSmsProvider.
-   */
   devOtpCode?: string;
 }
 
@@ -71,9 +47,6 @@ export async function requestOtp({
     throw new HttpError(409, "A customer with this mobile number already exists");
   }
 
-  // Retire any code still outstanding for this mobile+purpose. Without this,
-  // every unexpired code stays valid and the attacker's guessing surface grows
-  // with each resend.
   await OtpRequestModel.updateMany(
     { mobile: normalized, purpose, verified: false, expiresAt: { $gt: new Date() } },
     { $set: { expiresAt: new Date() } },
@@ -91,23 +64,12 @@ export async function requestOtp({
 
   const minutes = Math.round(env.OTP_TTL_SECONDS / 60);
 
-  /**
-   * Unlike the invoice link, this one is NOT swallowed on failure.
-   *
-   * The entire purpose of the request is to put a code in the customer's hand.
-   * Answering 201 when the gateway refused would leave them staring at a code
-   * entry box waiting for a message that is never coming; a 502 at least tells
-   * the UI to say "try again".
-   */
   let delivery: Awaited<ReturnType<SmsProvider["send"]>>;
 
   try {
     delivery = await getSmsProvider().send({
       to: normalized,
       text: `کد ورود شما: ${code}\nاعتبار: ${minutes} دقیقه`,
-      // Iranian gateways will not carry a one-time code on a normal sending
-      // line -- it has to be an approved template. Register one named "otp"
-      // whose first token is the code.
       template: "otp",
       variables: { code, minutes: String(minutes) },
     });
@@ -126,9 +88,6 @@ export async function requestOtp({
     purpose,
     expiresAt,
     expiresInSeconds: env.OTP_TTL_SECONDS,
-    // Keyed off what the provider actually returned, not off an env read here:
-    // only the mock hands text back, so a real gateway cannot produce this
-    // field however the environment is configured.
     ...(delivery.text ? { devOtpCode: code } : {}),
   };
 }
@@ -143,24 +102,15 @@ export interface VerifyOtpResult {
   verified: true;
   mobile: string;
   purpose: OtpPurpose;
-  /** Present only for 'login', where a session is established. */
   customer?: { id: string; firstName: string; lastName: string; mobile: string };
 }
 
-/**
- * Validates a submitted code and, for 'login', establishes the session by
- * setting the customer cookie on `res`.
- *
- * For 'register' it only marks the code verified and returns -- the Customer
- * document is created by the customers controller, which owns that write.
- */
 export async function verifyOtp(
   { mobile, code, purpose }: VerifyOtpInput,
   res: Response,
 ): Promise<VerifyOtpResult> {
   const normalized = normalizeMobile(mobile);
 
-  // Newest first: a resend supersedes whatever came before it.
   const otp = await OtpRequestModel.findOne({
     mobile: normalized,
     purpose,
@@ -169,8 +119,6 @@ export async function verifyOtp(
     .sort({ createdAt: -1 })
     .select("+code");
 
-  // The TTL index sweeps roughly once a minute, so an expired document can
-  // still be here. Check the timestamp rather than trusting its absence.
   if (!otp || otp.expiresAt.getTime() <= Date.now()) {
     throw new HttpError(400, "This code has expired. Request a new one.");
   }
@@ -196,10 +144,6 @@ export async function verifyOtp(
   otp.verifiedAt = new Date();
 
   if (purpose === "register") {
-    // This record is the proof POST /api/admin/customers looks for, but the
-    // TTL index would sweep it ~2 minutes after issue -- before the staff
-    // member has finished typing the customer's name. Push `expiresAt` out to
-    // the end of the registration window so the proof outlives the code.
     otp.expiresAt = new Date(
       Date.now() + env.REGISTRATION_WINDOW_MINUTES * 60 * 1000,
     );
@@ -208,13 +152,11 @@ export async function verifyOtp(
   await otp.save();
 
   if (purpose === "register") {
-    // No session, no customer -- creation happens in the customers controller.
     return { verified: true, mobile: normalized, purpose };
   }
 
   const customer = await CustomerModel.findOne({ mobile: normalized });
   if (!customer) {
-    // Only reachable if the customer was deleted between request and verify.
     throw new HttpError(404, "No customer is registered with this mobile number");
   }
 

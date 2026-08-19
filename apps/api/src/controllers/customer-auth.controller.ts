@@ -30,13 +30,6 @@ export const verifyOtpSchema = z.object({
   purpose: z.enum(OTP_PURPOSES),
 });
 
-/**
- * `register` codes are issued from the staff "add customer" screen, never by
- * the public site, so they require an admin session. `login` is public.
- *
- * This has to be checked in the controller rather than as route middleware:
- * the rule depends on `purpose`, which isn't known until the body is parsed.
- */
 function assertPurposeIsPermitted(purpose: string, req: Request) {
   if (purpose !== "register") return;
 
@@ -45,18 +38,15 @@ function assertPurposeIsPermitted(purpose: string, req: Request) {
   }
 }
 
-/** POST /api/customer/auth/request-otp */
 export async function requestOtpHandler(req: Request, res: Response) {
   const input = validated(res, requestOtpSchema);
   assertPurposeIsPermitted(input.purpose, req);
 
   const result = await requestOtp(input);
 
-  // The code itself is never in the response -- only the SMS carries it.
   res.status(201).json(result);
 }
 
-/** POST /api/customer/auth/verify-otp */
 export async function verifyOtpHandler(req: Request, res: Response) {
   const input = validated(res, verifyOtpSchema);
   assertPurposeIsPermitted(input.purpose, req);
@@ -64,7 +54,6 @@ export async function verifyOtpHandler(req: Request, res: Response) {
   res.json(await verifyOtp(input, res));
 }
 
-/** POST /api/customer/auth/logout */
 export async function logoutHandler(_req: Request, res: Response) {
   clearAuthCookie(res, "customer");
   res.json({ success: true });

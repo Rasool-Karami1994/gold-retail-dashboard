@@ -23,7 +23,6 @@ export default function RootLayout({
         <QueryProvider>
           <StoreHydration />
           {children}
-          {/* Rendered once at the root so a toast survives navigation. */}
           <Toaster />
         </QueryProvider>
       </body>

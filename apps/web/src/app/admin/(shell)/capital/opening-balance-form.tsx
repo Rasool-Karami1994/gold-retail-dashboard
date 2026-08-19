@@ -20,19 +20,7 @@ import { toApiDate } from "@/lib/jalali";
 import { toNumber } from "@/lib/numbers";
 import { JalaliDateField } from "./jalali-date-field";
 
-/**
- * The shop's opening position: gold, cash, and the day both were counted.
- *
- * One form, two jobs. On a shop that has never been configured it IS the
- * screen -- there are no figures to show until it is filled in. Afterwards it
- * opens from an edit button, with the warning below, because changing any of
- * the three re-derives every historical figure on the page: the whole series
- * is recomputed from these numbers on every request, so an edit is not a
- * correction going forward, it rewrites the past as well.
- */
-
 interface Fields {
-  /** Clean strings, as CurrencyInput emits them -- "" is a real state. */
   openingGoldGrams: string;
   openingCashToman: string;
   openingDate: Date | null;
@@ -50,7 +38,6 @@ export function OpeningBalanceForm({
   onCancel,
   submitLabel,
 }: {
-  /** Null on first run; the current values otherwise. */
   settings: ShopSettings | null;
   onSaved?: (settings: ShopSettings) => void;
   onCancel?: () => void;
@@ -68,8 +55,6 @@ export function OpeningBalanceForm({
   const mutation = useMutation({
     mutationFn: saveShopSettings,
     onSuccess: (saved) => {
-      // The series, the snapshot and every figure derived from them are now
-      // computed from different opening numbers.
       queryClient.setQueryData(capitalKeys.settings(), {
         configured: true,
         settings: saved,
@@ -83,7 +68,6 @@ export function OpeningBalanceForm({
       onSaved?.(saved);
     },
     onError: (error) => {
-      // The API answers in English; map by status rather than forwarding it.
       const status = error instanceof ApiError ? error.status : 0;
       toast.error(
         status === 400
@@ -102,8 +86,6 @@ export function OpeningBalanceForm({
     const cash = toNumber(fields.openingCashToman);
     const next: Errors = {};
 
-    // NaN is "nothing typed", which is not the same as zero -- a shop can
-    // genuinely open with no cash, and that has to be accepted.
     if (!Number.isFinite(grams)) next.openingGoldGrams = "وزن طلای اولیه را وارد کنید.";
     else if (grams < 0) next.openingGoldGrams = "وزن نمی‌تواند منفی باشد.";
 
@@ -118,8 +100,6 @@ export function OpeningBalanceForm({
     mutation.mutate({
       openingGoldGrams: grams,
       openingCashToman: cash,
-      // Never toISOString().slice(0, 10): the picker gives a local midnight,
-      // which UTC reports as the previous day in Tehran.
       openingDate: toApiDate(fields.openingDate!),
     });
   };
@@ -135,8 +115,6 @@ export function OpeningBalanceForm({
           onChange={(value) =>
             setFields((previous) => ({ ...previous, openingGoldGrams: value }))
           }
-          // Weight is not money: "۱ میلیون گرم" is not a thing anyone says, and
-          // grams are quoted with decimals where Toman never is.
           showWords={false}
           decimal
           error={errors.openingGoldGrams}
@@ -180,10 +158,6 @@ export function OpeningBalanceForm({
   );
 }
 
-/**
- * The warning only makes sense once there is history to rewrite, so it is not
- * shown on the first-run form -- there, these numbers are simply the truth.
- */
 function RecalculationWarning({ settings }: { settings: ShopSettings }) {
   return (
     <div className="flex gap-3 rounded-md border border-warning/40 bg-warning/8 p-4">
@@ -225,7 +199,6 @@ function RecalculationWarning({ settings }: { settings: ShopSettings }) {
   );
 }
 
-/** First-run state: the setup form standing in for the whole screen. */
 export function OpeningBalanceSetup() {
   return (
     <Card>

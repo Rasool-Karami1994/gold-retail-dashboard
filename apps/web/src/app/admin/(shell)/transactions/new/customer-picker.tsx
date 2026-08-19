@@ -7,20 +7,6 @@ import { NewCustomerWizard } from "@/components/customers/new-customer-wizard";
 import { customerKeys, findCustomerByMobile } from "@/lib/customers-api";
 import { isValidMobile, normalizeMobile } from "@/lib/mobile";
 
-/**
- * Step one of a transaction: whose deal is this?
- *
- * The mobile number is the lookup key because it IS the customer's identity in
- * this system (see customer.model.ts) -- names collide, numbers do not. Typing
- * a complete number searches for it; a hit locks the customer in, a miss opens
- * the registration wizard with the number already filled.
- *
- * Registration is a modal rather than a link to /admin/customers/new because
- * the cashier has a customer standing at the counter and a half-built invoice
- * on screen. Navigating away would throw the invoice away to add a row that
- * exists to serve it.
- */
-
 const LOOKUP_DEBOUNCE_MS = 400;
 
 export interface SelectedCustomer {
@@ -41,12 +27,6 @@ export function CustomerPicker({
   const [debounced, setDebounced] = React.useState("");
   const [wizardOpen, setWizardOpen] = React.useState(false);
 
-  /**
-   * Which number the wizard has already been offered for.
-   *
-   * Without this, closing the modal would re-open it on the very next render --
-   * the lookup result that triggered it is still "not found".
-   */
   const [offeredFor, setOfferedFor] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -54,8 +34,6 @@ export function CustomerPicker({
     return () => clearTimeout(timer);
   }, [mobile]);
 
-  // Only a complete number is worth a request: a substring search on "0912"
-  // matches most of the shop and can never produce an exact hit anyway.
   const ready = isValidMobile(debounced);
   const normalized = ready ? normalizeMobile(debounced) : "";
 
@@ -69,13 +47,10 @@ export function CustomerPicker({
   const found = settled ? data : undefined;
   const missing = settled && data === null;
 
-  // A hit needs no confirmation -- the number matched exactly, so lock it in.
   React.useEffect(() => {
     if (found) onChange(found);
   }, [found, onChange]);
 
-  // A miss opens the wizard once per number, so the cashier is not stuck
-  // wondering where to go next.
   React.useEffect(() => {
     if (missing && offeredFor !== normalized) {
       setWizardOpen(true);
@@ -170,11 +145,6 @@ export function CustomerPicker({
         title="ثبت مشتری جدید"
         description="پس از تأیید شماره با کد پیامکی، مشتری به این معامله اضافه می‌شود."
       >
-        {/*
-          Remounted per number via `key`: the wizard holds the OTP step, the
-          countdown and a spent-code flag in its own state, and reopening it for
-          a different customer must not inherit any of that.
-        */}
         <NewCustomerWizard
           key={normalized}
           initialMobile={normalized}

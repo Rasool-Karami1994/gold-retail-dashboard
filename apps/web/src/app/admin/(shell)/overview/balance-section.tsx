@@ -11,28 +11,8 @@ import {
 } from "@/lib/stats-api";
 import { OpenTransactionsModal } from "./open-transactions-modal";
 
-/**
- * Sections 2 and 3: what is outstanding right now.
- *
- * One component, used twice -- the two sections differ only in unit, so the
- * layout, the queries' shape and the modal are identical. Splitting them into
- * two files would be the same 150 lines twice.
- *
- * No date filter, deliberately: these are running totals. A debt raised last
- * year is still owed today, and filtering it out because it falls outside "this
- * month" would understate the balance. The API refuses a range on these two
- * endpoints for the same reason.
- *
- * WHICH IS ALSO WHY THESE ARE StatCards, NOT CHARTS. A figure with no axis to
- * vary over has nothing to plot: the single bar these used to draw always
- * filled its plot area, so it carried no information the number above it did
- * not already give, and cost a chart's height to say so.
- */
-
-/** Customers owe the shop -- a receivable. */
-const DEBT_COLOR = "#ef4444"; // danger
-/** The shop owes customers -- a payable. */
-const CREDIT_COLOR = "#f97316"; // warning
+const DEBT_COLOR = "#ef4444";
+const CREDIT_COLOR = "#f97316";
 
 export function BalanceSection({ unit }: { unit: "amount" | "grams" }) {
   const [detailsOpen, setDetailsOpen] = React.useState(false);
@@ -66,8 +46,6 @@ export function BalanceSection({ unit }: { unit: "amount" | "grams" }) {
 
   return (
     <section className="flex flex-col gap-4">
-      {/* Side by side from `sm`: the two are a pair -- one direction of the
-          ledger each -- and reading them against each other is the point. */}
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           title="بدهی مشتریان به فروشگاه"
@@ -119,12 +97,6 @@ export function BalanceSection({ unit }: { unit: "amount" | "grams" }) {
   );
 }
 
-/**
- * Direction icons, standing in for the colour a chart legend used to carry.
- *
- * Into the shop for money owed to it, out of the shop for money it owes -- the
- * arrow says which way the debt points without relying on colour alone.
- */
 function ArrowInIcon() {
   return (
     <Icon>
@@ -158,13 +130,6 @@ function Icon({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Net position across the two directions.
- *
- * Shown because the two figures above cannot simply be added -- they point in
- * opposite directions, so the only meaningful summary is the difference, and
- * which side it favours.
- */
 function NetPosition({
   debt,
   credit,

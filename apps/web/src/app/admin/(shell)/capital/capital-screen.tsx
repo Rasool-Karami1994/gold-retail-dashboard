@@ -32,14 +32,6 @@ import { CapitalLine, EstimatedLegend, toChartData } from "./capital-chart";
 import { GoldPriceForm } from "./gold-price-form";
 import { OpeningBalanceForm, OpeningBalanceSetup } from "./opening-balance-form";
 
-/**
- * Capital measured in grams of gold.
- *
- * Two queries, in sequence rather than in parallel: the series is only asked
- * for once the shop is known to be configured. The API answers 409 for an
- * unconfigured shop, and firing that request anyway would put a failed query
- * behind a screen whose correct state is a setup form, not an error.
- */
 export function CapitalScreen() {
   const [range, setRange] = React.useState<DateRange>(() =>
     rangeForPreset("month"),
@@ -58,11 +50,6 @@ export function CapitalScreen() {
     queryKey: capitalKeys.series(range, granularity),
     queryFn: () => fetchCapital(range, granularity),
     enabled: configured,
-    /**
-     * The range moves as the user clicks through presets; without this the
-     * cards and the chart blank out on every click and the page flickers
-     * between skeletons instead of updating in place.
-     */
     placeholderData: (previous) => previous,
   });
 
@@ -82,9 +69,6 @@ export function CapitalScreen() {
     );
   }
 
-  // First run: the setup form IS the screen. There is nothing to plot, and a
-  // chart of a capital measured from an unknown starting point would be a
-  // confident wrong answer rather than a missing one.
   if (!configured) {
     return (
       <>
@@ -147,9 +131,6 @@ export function CapitalScreen() {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-
-/** The starting position every figure on the page is measured from. */
 function OpeningPosition({
   settings,
   onEdit,
@@ -187,7 +168,6 @@ function OpeningPosition({
   );
 }
 
-/** `+۱۲٫۵` / `−۳` -- Intl supplies the minus, so only the plus is added. */
 function signedGrams(value: number): string {
   return value > 0 ? `+${formatGrams(value)}` : formatGrams(value);
 }
@@ -210,9 +190,6 @@ function Figures({
   const snapshot = data?.snapshot;
   const failed = Boolean(error);
 
-  // A shop with no price on record has a known gold and cash position but no
-  // way to express it in grams. That is a specific, fixable state -- "record
-  // today's price" -- not a failed request, so it gets its own message.
   const unpriced = Boolean(snapshot) && snapshot!.capitalGrams === null;
   const change = snapshot?.change ?? null;
   const direction = change ? (change.grams >= 0 ? "success" : "danger") : "neutral";
@@ -296,9 +273,6 @@ function Figures({
           format={formatGrams}
           unit="گرم"
           loading={loading}
-          // Cash with no price to convert it at has an unknown gram value, not
-          // a zero one -- and "۰ گرم" beside a hint reading "۶۳۹ میلیون تومان"
-          // would be a plain contradiction.
           error={failed || unpriced}
           errorMessage={
             unpriced ? "پس از ثبت قیمت روز محاسبه می‌شود." : notFoundHint
@@ -335,7 +309,6 @@ function Figures({
   );
 }
 
-/** Toman as grams at a price, guarding the price that may not exist yet. */
 function gramsOf(amount: number | undefined, pricePerGram: number | null | undefined): number {
   if (!amount || !pricePerGram) return 0;
   return Math.round((amount / pricePerGram) * 1000) / 1000;
@@ -353,8 +326,6 @@ function ScreenSkeleton() {
     </div>
   );
 }
-
-/* -------------------------------------------------------------------------- */
 
 function GoldIcon() {
   return (

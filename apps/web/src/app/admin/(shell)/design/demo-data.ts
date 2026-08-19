@@ -1,5 +1,3 @@
-/** Static fixtures for the component gallery. No API is wired up yet. */
-
 export interface DemoInvoice {
   id: string;
   invoiceNumber: string;
@@ -45,7 +43,6 @@ export const demoInvoices: DemoInvoice[] = NAMES.map((customer, index) => {
     totalAmount,
     remainingAmount: totalAmount - paid,
     status: totalAmount - paid === 0 ? "settled" : "open",
-    // Spread backwards from a fixed date so the fixture is deterministic.
     createdAt: new Date(2026, 6, 31 - index * 2, 10, 30),
   };
 });

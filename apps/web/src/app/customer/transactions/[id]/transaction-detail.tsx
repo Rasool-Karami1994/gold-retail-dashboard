@@ -23,16 +23,6 @@ import {
 } from "@/lib/transactions-api";
 import { CUSTOMER_TRANSACTIONS } from "../../routes";
 
-/**
- * One of the customer's own invoices, read-only.
- *
- * The admin's version of this screen can re-render the PDF and will grow an
- * add-payment form; this one deliberately cannot do either. Both of those
- * endpoints are admin-only at the API, so offering the buttons would be
- * offering 403s. What remains is everything a customer needs: what the deal
- * was, what is outstanding, and what they have paid so far.
- */
-
 const TYPE_LABELS = { sell: "خرید از فروشگاه", buy: "فروش به فروشگاه" } as const;
 
 const GOLD_TYPE_LABELS = {
@@ -50,12 +40,6 @@ const BANK_TYPE_LABELS = {
   satna: "ساتنا",
 } as const;
 
-/**
- * The balance, from the CUSTOMER's side of the counter.
- *
- * Same `balanceDirection` the admin screen reads, worded for the person who
- * owes or is owed rather than about them.
- */
 const BALANCE_LABELS = {
   "customer-owes-shop": "شما به فروشگاه بدهکار هستید",
   "shop-owes-customer": "فروشگاه به شما بدهکار است",
@@ -66,8 +50,6 @@ export function MyTransactionDetail({ id }: { id: string }) {
   const { data, isPending, error, refetch } = useQuery({
     queryKey: myTransactionKeys.detail(id),
     queryFn: () => fetchMyTransaction(id),
-    // 404 covers both "no such invoice" and "not yours" -- the API answers the
-    // same way for each on purpose. Either way it will stay a 404.
     retry: (count, err) =>
       !(err instanceof ApiError && err.status === 404) && count < 2,
   });
@@ -278,12 +260,6 @@ function PaymentsList({ payments }: { payments: TransactionPayment[] }) {
         )}
       </div>
 
-      {/*
-        The destination card is deliberately absent, unlike the admin's copy of
-        this table. It is the SHOP's receiving card, not the customer's, and it
-        is of no use to them -- printing someone else's card number on a page
-        because the field happens to be in the response is not a good default.
-      */}
       <DataTable
         data={payments}
         columns={columns}

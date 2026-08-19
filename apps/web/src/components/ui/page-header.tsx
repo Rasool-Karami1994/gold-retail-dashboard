@@ -6,23 +6,15 @@ export interface Breadcrumb {
   href?: string;
 }
 
-// `title` is omitted from the base attributes: HTMLAttributes types it as the
-// tooltip string, and here it's the heading content.
 export interface PageHeaderProps
   extends Omit<React.HTMLAttributes<HTMLElement>, "title"> {
   title: React.ReactNode;
-  /** Small tinted line above the title, e.g. the section name. */
   eyebrow?: React.ReactNode;
   description?: React.ReactNode;
-  /** Buttons or filters, pinned to the inline-end edge (left, in RTL). */
   actions?: React.ReactNode;
   breadcrumbs?: Breadcrumb[];
 }
 
-/**
- * Standard page heading: eyebrow, title, description on one side, actions on
- * the other. Stacks on narrow screens so the actions don't crush the title.
- */
 export function PageHeader({
   title,
   eyebrow,
@@ -54,8 +46,6 @@ export function PageHeader({
                     <span aria-current="page">{crumb.label}</span>
                   )}
                   {index < breadcrumbs.length - 1 && (
-                    // Follows the reading direction. SVG/glyph shapes aren't
-                    // mirrored by dir="rtl", so flip it explicitly.
                     <span aria-hidden="true" className="text-fg-disabled rtl:-scale-x-100">
                       ›
                     </span>

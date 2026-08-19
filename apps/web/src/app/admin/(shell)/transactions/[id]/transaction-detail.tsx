@@ -42,15 +42,6 @@ const BANK_TYPE_LABELS = {
   satna: "ساتنا",
 } as const;
 
-/**
- * Which way an open balance points, in words.
- *
- * This is the one fact about a transaction that cannot be read off the numbers
- * alone: the same non-zero remainder means the customer owes the shop on a
- * 'sell' and the shop owes the customer on a 'buy'. The model resolves it into
- * `balanceDirection` precisely so no screen has to re-derive it -- see the
- * header comment in transaction.model.ts.
- */
 const BALANCE_LABELS = {
   "customer-owes-shop": "مشتری به فروشگاه بدهکار است",
   "shop-owes-customer": "فروشگاه به مشتری بدهکار است",
@@ -61,7 +52,6 @@ export function TransactionDetail({ id }: { id: string }) {
   const { data, isPending, error, refetch } = useQuery({
     queryKey: transactionKeys.detail(id),
     queryFn: () => fetchTransaction(id),
-    // A bad id is a 404 and will stay one; retrying only delays the message.
     retry: (count, err) =>
       !(err instanceof ApiError && err.status === 404) && count < 2,
   });
@@ -180,12 +170,6 @@ export function TransactionDetail({ id }: { id: string }) {
               <CardContent className="flex flex-col gap-3">
                 <h2 className="text-sm font-bold text-fg-secondary">مبالغ</h2>
 
-                {/*
-                  Base and margin are shown from the STORED figures, and only
-                  when there was a margin: a "+ ۰" line on every invoice that
-                  never had one is noise, and everything recorded before the
-                  field existed is one of those.
-                */}
                 {data.profitAmount > 0 && (
                   <>
                     <Amount
@@ -220,14 +204,6 @@ export function TransactionDetail({ id }: { id: string }) {
   );
 }
 
-/**
- * The PDF, or the button that makes one.
- *
- * Declared at module level, not nested inside TransactionDetail: a component
- * defined during render is a new type on every render, so React would unmount
- * and remount this one each time the parent re-rendered -- throwing away the
- * `isPending` of a render that is still running.
- */
 function InvoiceAction({ transaction }: { transaction: TransactionDetailData }) {
   const queryClient = useQueryClient();
 
@@ -253,11 +229,6 @@ function InvoiceAction({ transaction }: { transaction: TransactionDetailData }) 
           فاکتور PDF
         </a>
 
-        {/*
-          Re-rendering matters after a payment is recorded: the printed invoice
-          still shows the old balance. `notify` is left off, so this does not
-          text the customer a second link.
-        */}
         <Button
           type="button"
           variant="ghost"
@@ -288,12 +259,6 @@ function InvoiceAction({ transaction }: { transaction: TransactionDetailData }) 
   );
 }
 
-/**
- * The headline: is anything still owed, and by whom.
- *
- * Above the numbers rather than beside them, because it is the question a
- * settled-or-not glance is actually asking.
- */
 function BalanceBanner({ transaction }: { transaction: TransactionDetailData }) {
   const settled = transaction.status === "settled";
 
@@ -337,7 +302,6 @@ function BalanceBanner({ transaction }: { transaction: TransactionDetailData }) 
   );
 }
 
-
 function Field({
   label,
   children,
@@ -364,7 +328,6 @@ function Amount({
   value: number;
   tone?: "success" | "danger";
   emphasis?: boolean;
-  /** "+" or "−" for a line that adjusts the one above it. */
   sign?: string;
 }) {
   return (

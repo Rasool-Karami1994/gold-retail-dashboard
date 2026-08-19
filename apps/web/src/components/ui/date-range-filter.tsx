@@ -15,14 +15,6 @@ import {
   type DateRangePreset,
 } from "@/lib/jalali";
 
-/**
- * Preset range chips plus a Jalali calendar for custom ranges.
- *
- * Presets are computed on the Persian calendar (see lib/jalali.ts). Picking
- * "custom" opens a two-endpoint range picker; the popover stays open until both
- * ends are chosen, because a half-selected range is not a usable filter.
- */
-
 const PRESETS: Exclude<DateRangePreset, "custom">[] = [
   "today",
   "week",
@@ -34,7 +26,6 @@ export interface DateRangeFilterProps {
   value?: DateRange;
   onChange?: (range: DateRange) => void;
   defaultPreset?: Exclude<DateRangePreset, "custom">;
-  /** Compact chips, for embedding in a card header. */
   size?: "sm" | "md";
   className?: string;
 }
@@ -55,17 +46,6 @@ export function DateRangeFilter({
   const containerRef = React.useRef<HTMLDivElement>(null);
   const popoverRef = React.useRef<HTMLDivElement>(null);
 
-  /**
-   * Whether the calendar opens upward.
-   *
-   * It hangs below the chips by default, which is fine in a card header. Inside
-   * a modal the control can sit near the bottom of the screen, and a calendar
-   * ~340px tall would then run off the viewport -- unreachable in a dialog,
-   * because the top layer does not scroll with the page.
-   *
-   * Measured rather than assumed -- see the placement effect below for why the
-   * measurement that decides it has to run on a timer.
-   */
   const [dropUp, setDropUp] = React.useState(false);
 
   React.useLayoutEffect(() => {
@@ -80,31 +60,12 @@ export function DateRangeFilter({
       const needed = popover.offsetHeight + 8;
       const spaceBelow = window.innerHeight - rect.bottom;
 
-      // Only flip if going up is actually better -- on a short viewport neither
-      // side fits, and dropping down at least keeps the first week visible.
       setDropUp(spaceBelow < needed && rect.top > spaceBelow);
     };
 
     place();
 
-    /**
-     * Measured a second time, on a timer, and this is the measurement that
-     * actually decides it.
-     *
-     * The popover is a few pixels of padding when the layout effect above runs:
-     * the calendar builds its month in a PASSIVE effect, which React has not
-     * got to yet, so the first measurement always concludes there is room
-     * below. A timeout lands after those effects, with the real height.
-     *
-     * A `requestAnimationFrame` would be the obvious way to wait, and it is the
-     * wrong one -- it only runs when the browser is producing frames, so in a
-     * background tab the popover would open unplaced and stay that way. Timers
-     * run regardless.
-     */
     const timer = window.setTimeout(place, 0);
-    // Still watched for later size changes: a month spanning six weeks is a row
-    // taller than one spanning five, and the popover has to re-place itself
-    // when the user pages through.
     const observer = new ResizeObserver(place);
     observer.observe(popover);
     window.addEventListener("resize", place);
@@ -121,7 +82,6 @@ export function DateRangeFilter({
     onChange?.(next);
   };
 
-  // Close the popover on outside click or Escape.
   React.useEffect(() => {
     if (!open) return;
 
@@ -216,10 +176,6 @@ export function DateRangeFilter({
           aria-label="انتخاب بازه دلخواه"
           className={cn(
             "absolute z-40 end-0",
-            // Rendered INLINE, never portaled. Inside a <dialog> opened with
-            // showModal() the modal lives in the browser's top layer, and a
-            // popover portaled to document.body would land behind it with no
-            // z-index able to help. Staying in the subtree keeps it on top.
             dropUp ? "bottom-full mb-2" : "top-full mt-2",
             "rounded-lg border border-border bg-surface-overlay p-2 shadow-lg",
           )}
@@ -231,8 +187,6 @@ export function DateRangeFilter({
             locale={LOCALE}
             value={[range.from, range.to]}
             onChange={handlePickerChange}
-            // Styling comes from the .rmdp-* overrides in globals.css; the
-            // library's own themes don't know about our tokens.
             className="gd-calendar"
           />
           <p className="px-2 pb-1 pt-2 text-2xs text-fg-muted">

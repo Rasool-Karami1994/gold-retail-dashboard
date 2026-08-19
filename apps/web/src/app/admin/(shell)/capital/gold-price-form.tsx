@@ -14,23 +14,9 @@ import { formatJalali } from "@/lib/jalali";
 import { formatToman } from "@/lib/format";
 import { toNumber } from "@/lib/numbers";
 
-/**
- * Today's gold price, at the top of the capital screen because everything
- * below it is valued at this number.
- *
- * The action changes wording with the day's state: a day with no price on
- * record is "ثبت", a day that already has one is "به‌روزرسانی", because the
- * endpoint upserts by day -- submitting again corrects today's figure rather
- * than adding a second one, and the button should say so before it is pressed.
- */
 export function GoldPriceForm() {
   const queryClient = useQueryClient();
   const [price, setPrice] = React.useState("");
-  /**
-   * Whether the field has been touched since the query answered. Without it,
-   * the prefill effect below would overwrite what someone is typing the moment
-   * a refetch resolves -- and this query is invalidated by its own submit.
-   */
   const touched = React.useRef(false);
 
   const { data, isPending, isError, refetch } = useQuery({
@@ -53,7 +39,6 @@ export function GoldPriceForm() {
         today: saved,
         latest: saved,
       });
-      // Every figure on the screen is priced off this number.
       queryClient.invalidateQueries({ queryKey: capitalKeys.all });
 
       toast.success(
@@ -131,13 +116,6 @@ export function GoldPriceForm() {
   );
 }
 
-/**
- * What the figures are currently priced at, and whether that price is today's.
- *
- * A carried-forward price is not an error, but it is the difference between a
- * measured number and an estimate -- the same distinction the chart draws on
- * its points -- so the screen says it in words as well.
- */
 function PriceStatus({ data }: { data: GoldPriceContext | undefined }) {
   if (data?.today) {
     return (
